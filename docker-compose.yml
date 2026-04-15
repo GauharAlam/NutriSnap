@@ -11,6 +11,42 @@ services:
       MONGO_INITDB_DATABASE: fitness_nutrition_app
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  server:
+    profiles: ["fullstack"]
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/fitness_nutrition_app
+      CLIENT_URL: http://localhost:8080
+      SERVER_URL: http://localhost:5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - uploads_data:/app/uploads
+
+  client:
+    profiles: ["fullstack"]
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    depends_on:
+      - server
+    ports:
+      - "8080:80"
 
 volumes:
   mongo_data:
+  uploads_data:

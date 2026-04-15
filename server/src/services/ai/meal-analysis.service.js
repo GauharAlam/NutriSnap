@@ -1,0 +1,179 @@
+import fs from "fs/promises";
+import path from "path";
+import { env } from "../../config/env.js";
+import { uploadsRoot } from "../../config/paths.js";
+import { AppError } from "../../utils/app-error.js";
+import {
+  estimateNutritionFromItems,
+  inferFoodsFromFilename,
+} from "../nutrition/meal-estimator.service.js";
+
+function resolveUploadPath(imagePath) {
+  if (!imagePath || typeof imagePath !== "string") {
+    throw new AppError("imagePath is required for analysis", 400);
+  }
+
+  const relativePath = imagePath.replace(/^\/+/, "");
+  const absolutePath = path.resolve(uploadsRoot, "..", relativePath);
+
+  if (!absolutePath.startsWith(path.resolve(uploadsRoot))) {
+    throw new AppError("Image path is invalid", 400);
+  }
+
+  return absolutePath;
+}
+
+function guessMimeType(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+
+  switch (extension) {
+    case ".png":
+      return "image/png";
+    case ".webp":
+      return "image/webp";
+    case ".gif":
+      return "image/gif";
+    default:
+      return "image/jpeg";
+  }
+}
+
+function sanitizeAiResult(result = {}, fallbackMealType = "snack") {
+  const supportedMealTypes = ["breakfast", "lunch", "dinner", "snack"];
+  const safeMealType = supportedMealTypes.includes(result.mealType)
+    ? result.mealType
+    : fallbackMealType;
+
+  const safeFoodItems = Array.isArray(result.foodItems)
+    ? result.foodItems
+        .filter((item) => item && typeof item.name === "string")
+        .map((item) => ({
+          name: item.name.trim(),
+          portionMultiplier: Number(item.portionMultiplier) || 1,
+        }))
+        .filter((item) => item.name)
+    : [];
+
+  return {
+    title: typeof result.title === "string" && result.title.trim() ? result.title.trim() : "AI meal suggestion",
+    mealType: safeMealType,
+    foodItems: safeFoodItems,
+    notes:
+      typeof result.notes === "string" && result.notes.trim()
+        ? result.notes.trim()
+        : "Review the AI suggestion before saving this meal.",
+    confidence:
+      typeof result.confidence === "string" && result.confidence.trim()
+        ? result.confidence.trim()
+        : "medium",
+  };
+}
+
+function extractJson(text = "") {
+  const fencedMatch = text.match(/```json\s*([\s\S]*?)```/i);
+
+  if (fencedMatch) {
+    return fencedMatch[1];
+  }
+
+  const objectMatch = text.match(/\{[\s\S]*\}/);
+  return objectMatch ? objectMatch[0] : text;
+}
+
+async function callOpenAiMealAnalysis({ imagePath, mealTypeHint, originalName }) {
+  const absolutePath = resolveUploadPath(imagePath);
+  const fileBuffer = await fs.readFile(absolutePath);
+  const base64 = fileBuffer.toString("base64");
+  const mimeType = guessMimeType(absolutePath);
+  const dataUrl = `data:${mimeType};base64,${base64}`;
+
+  const prompt = [
+    "Analyze this food image for a fitness and nutrition tracker.",
+    "Return JSON only with these keys: title, mealType, foodItems, notes, confidence.",
+    'mealType must be one of "breakfast", "lunch", "dinner", "snack".',
+    "foodItems must be an array of objects with keys name and portionMultiplier.",
+    "portionMultiplier should be a number where 1 is a normal serving, 0.5 is half, 1.5 is larger, etc.",
+    "Keep 2 to 5 food items maximum.",
+    "Use the image first, and use filename or meal type hint only as a weak secondary signal.",
+    `Filename hint: ${originalName || "unknown"}.`,
+    `Meal type hint: ${mealTypeHint || "unknown"}.`,
+  ].join(" ");
+
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.openaiApiKey}`,
+    },
+    body: JSON.stringify({
+      model: env.openaiModel,
+      input: [
+        {
+          role: "user",
+          content: [
+            { type: "input_text", text: prompt },
+            { type: "input_image", image_url: dataUrl, detail: "high" },
+          ],
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new AppError(`OpenAI image analysis failed: ${errorText}`, 502);
+  }
+
+  const data = await response.json();
+  const outputText = data.output_text || "";
+  const parsed = JSON.parse(extractJson(outputText));
+
+  return sanitizeAiResult(parsed, mealTypeHint || "snack");
+}
+
+function buildFallbackAnalysis({ mealTypeHint, originalName }) {
+  const inferredFoodItems = inferFoodsFromFilename(originalName);
+  const fallbackMealType = mealTypeHint || "snack";
+
+  return {
+    title:
+      fallbackMealType === "breakfast"
+        ? "Balanced breakfast bowl"
+        : fallbackMealType === "lunch"
+          ? "Balanced lunch plate"
+          : fallbackMealType === "dinner"
+            ? "Balanced dinner plate"
+            : "Mixed snack plate",
+    mealType: fallbackMealType,
+    foodItems: inferredFoodItems,
+    notes:
+      "AI fallback used because no live model analysis was available. Please review the suggested foods and nutrients before saving.",
+    confidence: "low",
+  };
+}
+
+export async function analyzeMealImageWithAi(payload) {
+  let analysis;
+  let source = "fallback_estimator";
+
+  try {
+    if (env.openaiApiKey) {
+      analysis = await callOpenAiMealAnalysis(payload);
+      source = "ai_with_estimator";
+    } else {
+      analysis = buildFallbackAnalysis(payload);
+    }
+  } catch (error) {
+    analysis = buildFallbackAnalysis(payload);
+    analysis.notes = `${analysis.notes} Live analysis error: ${error.message}`;
+    source = "fallback_after_error";
+  }
+
+  const nutritionEstimate = estimateNutritionFromItems(analysis.foodItems);
+
+  return {
+    analysis,
+    nutritionEstimate,
+    source,
+  };
+}

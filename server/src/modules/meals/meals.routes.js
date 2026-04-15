@@ -5,10 +5,13 @@ import {
   analyzeMealImage,
   createMealEntry,
   deleteMealEntry,
+  estimateMealNutrition,
   listMeals,
   updateMealEntry,
   uploadMealImage,
 } from "./meals.controller.js";
+import { validateAnalyzeMealPayload } from "./meals.analysis.validation.js";
+import { validateEstimateNutritionPayload } from "./meals.estimate.validation.js";
 import {
   validateCreateMealPayload,
   validateUpdateMealPayload,
@@ -22,7 +25,13 @@ router.post(
   mealImageUpload.single("image"),
   uploadMealImage
 );
-router.post("/analyze-image", requireAuth, analyzeMealImage);
+router.post("/analyze-image", requireAuth, validateAnalyzeMealPayload, analyzeMealImage);
+router.post(
+  "/estimate-nutrition",
+  requireAuth,
+  validateEstimateNutritionPayload,
+  estimateMealNutrition
+);
 router.post("/", requireAuth, validateCreateMealPayload, createMealEntry);
 router.get("/", requireAuth, listMeals);
 router.patch("/:id", requireAuth, validateUpdateMealPayload, updateMealEntry);

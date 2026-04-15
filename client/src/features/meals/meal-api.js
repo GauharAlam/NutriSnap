@@ -23,6 +23,16 @@ export async function uploadMealImage(file) {
   return response.data.data;
 }
 
+export async function analyzeMealImage(payload) {
+  const response = await apiClient.post("/meals/analyze-image", payload);
+  return response.data.data;
+}
+
+export async function estimateMealNutrition(foodItems) {
+  const response = await apiClient.post("/meals/estimate-nutrition", { foodItems });
+  return response.data.data;
+}
+
 export async function createMealEntry(payload) {
   const response = await apiClient.post("/meals", payload);
   return response.data.data;

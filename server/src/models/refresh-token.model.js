@@ -16,7 +16,7 @@ const refreshTokenSchema = new mongoose.Schema(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
+      // Removed "index: true" from here to fix the duplicate index warning
     },
   },
   {
@@ -24,6 +24,8 @@ const refreshTokenSchema = new mongoose.Schema(
   }
 );
 
+// We keep this one because it sets up the TTL (Time-To-Live) index 
+// which automatically deletes documents when they expire
 refreshTokenSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const RefreshToken = mongoose.model("RefreshToken", refreshTokenSchema);

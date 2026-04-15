@@ -1,4 +1,4 @@
-import { createContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   apiClient,
   clearAccessTokenHeader,
@@ -9,8 +9,7 @@ import {
   getStoredAccessToken,
   storeAccessToken,
 } from "./auth-storage";
-
-export const AuthContext = createContext(null);
+import { AuthContext } from "./auth-context";
 
 function getErrorMessage(error, fallbackMessage) {
   return error?.response?.data?.message || fallbackMessage;
@@ -52,7 +51,7 @@ export function AuthProvider({ children }) {
           setUser(response.data.data);
           setIsBootstrapping(false);
           return;
-        } catch (error) {
+        } catch {
           clearAccessTokenHeader();
           clearStoredAccessToken();
         }
@@ -67,7 +66,7 @@ export function AuthProvider({ children }) {
 
         setAccessToken(response.data.data.accessToken);
         setUser(response.data.data.user);
-      } catch (error) {
+      } catch {
         if (!isMounted) {
           return;
         }

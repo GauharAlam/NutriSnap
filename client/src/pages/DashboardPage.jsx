@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchCurrentGoal, saveCurrentGoal } from "../features/goals/goal-api";
 import {
+  analyzeMealImage,
   createMealEntry,
   deleteMealEntry,
+  estimateMealNutrition,
   fetchMealsForDate,
   uploadMealImage,
 } from "../features/meals/meal-api";
+import { chatWithAssistant } from "../features/assistant/assistant-api";
+import { fetchDailyProgress, fetchWeeklyProgress } from "../features/progress/progress-api";
 import { useAuth } from "../features/auth/useAuth";
 
 const goalTypeLabels = {
@@ -55,6 +59,15 @@ function getLocalDateTimeValue(date = new Date()) {
   return adjusted.toISOString().slice(0, 16);
 }
 
+function getWeekStart(dateString) {
+  const date = dateString ? new Date(`${dateString}T00:00:00`) : new Date();
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(date);
+  monday.setDate(date.getDate() + diff);
+  return getLocalDateValue(monday);
+}
+
 function createEmptySummary() {
   return {
     calories: 0,
@@ -74,6 +87,7 @@ function createInitialMealForm() {
     notes: "",
     eatenAt: getLocalDateTimeValue(),
     imageFile: null,
+    uploadedImage: null,
     nutrition: {
       calories: "",
       protein: "",
@@ -118,9 +132,23 @@ export function DashboardPage() {
   const [mealPreviewUrl, setMealPreviewUrl] = useState("");
   const [isMealsLoading, setIsMealsLoading] = useState(true);
   const [isMealSubmitting, setIsMealSubmitting] = useState(false);
+  const [isMealAnalyzing, setIsMealAnalyzing] = useState(false);
   const [deletingMealId, setDeletingMealId] = useState("");
   const [mealError, setMealError] = useState("");
   const [mealSuccessMessage, setMealSuccessMessage] = useState("");
+  const [analysisSummary, setAnalysisSummary] = useState(null);
+  const [reviewFoodItems, setReviewFoodItems] = useState([]);
+  const [isEstimatingNutrition, setIsEstimatingNutrition] = useState(false);
+
+  const [dailyProgress, setDailyProgress] = useState(null);
+  const [weeklyProgress, setWeeklyProgress] = useState(null);
+  const [isProgressLoading, setIsProgressLoading] = useState(true);
+  const [progressError, setProgressError] = useState("");
+
+  const [assistantPrompt, setAssistantPrompt] = useState("How can I improve my meals today?");
+  const [assistantReply, setAssistantReply] = useState(null);
+  const [assistantError, setAssistantError] = useState("");
+  const [isAssistantLoading, setIsAssistantLoading] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -186,6 +214,43 @@ export function DashboardPage() {
   }, [selectedDate]);
 
   useEffect(() => {
+    let isMounted = true;
+
+    async function loadProgress() {
+      setIsProgressLoading(true);
+
+      try {
+        const [daily, weekly] = await Promise.all([
+          fetchDailyProgress(selectedDate),
+          fetchWeeklyProgress(getWeekStart(selectedDate)),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setDailyProgress(daily);
+        setWeeklyProgress(weekly);
+        setProgressError("");
+      } catch (error) {
+        if (isMounted) {
+          setProgressError(error?.response?.data?.message || "Unable to load dashboard progress");
+        }
+      } finally {
+        if (isMounted) {
+          setIsProgressLoading(false);
+        }
+      }
+    }
+
+    loadProgress();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedDate]);
+
+  useEffect(() => {
     return () => {
       if (mealPreviewUrl) {
         URL.revokeObjectURL(mealPreviewUrl);
@@ -223,8 +288,8 @@ export function DashboardPage() {
   }, [goal]);
 
   const intakeCards = useMemo(() => {
-    const target = goal?.dailyTargets || createEmptySummary();
-    const summary = mealsData.summary;
+    const target = dailyProgress?.target || goal?.dailyTargets || createEmptySummary();
+    const summary = dailyProgress?.summary || mealsData.summary;
 
     return [
       {
@@ -248,7 +313,7 @@ export function DashboardPage() {
         meta: `${summary.sugar}g sugar tracked so far`,
       },
     ];
-  }, [goal, mealsData.summary]);
+  }, [dailyProgress, goal, mealsData.summary]);
 
   function handleGoalTypeChange(event) {
     const { value } = event.target;
@@ -365,6 +430,7 @@ export function DashboardPage() {
     setMealForm((current) => ({
       ...current,
       imageFile: file,
+      uploadedImage: null,
     }));
 
     setMealPreviewUrl((currentUrl) => {
@@ -376,6 +442,146 @@ export function DashboardPage() {
     });
 
     setMealSuccessMessage("");
+    setAnalysisSummary(null);
+    setReviewFoodItems([]);
+  }
+
+  async function ensureUploadedMealImage() {
+    if (mealForm.uploadedImage) {
+      return mealForm.uploadedImage;
+    }
+
+    if (!mealForm.imageFile) {
+      throw new Error("Please choose a meal image first");
+    }
+
+    const uploaded = await uploadMealImage(mealForm.imageFile);
+
+    setMealForm((current) => ({
+      ...current,
+      uploadedImage: uploaded,
+    }));
+
+    return uploaded;
+  }
+
+  async function handleAnalyzeMeal() {
+    setMealError("");
+    setMealSuccessMessage("");
+    setIsMealAnalyzing(true);
+
+    try {
+      const uploaded = await ensureUploadedMealImage();
+      const result = await analyzeMealImage({
+        imagePath: uploaded.imagePath,
+        imageUrl: uploaded.imageUrl,
+        originalName: uploaded.originalName,
+        mealTypeHint: mealForm.mealType,
+      });
+
+      setMealForm((current) => ({
+        ...current,
+        title: current.title || result.analysis.title,
+        mealType: result.analysis.mealType || current.mealType,
+        foodItems: result.analysis.foodItems.map((item) => item.name).join(", "),
+        notes: current.notes || result.analysis.notes,
+        uploadedImage: uploaded,
+        nutrition: {
+          calories: String(result.nutritionEstimate.totals.calories),
+          protein: String(result.nutritionEstimate.totals.protein),
+          carbs: String(result.nutritionEstimate.totals.carbs),
+          fats: String(result.nutritionEstimate.totals.fats),
+          sugar: String(result.nutritionEstimate.totals.sugar),
+        },
+      }));
+      setAnalysisSummary(result);
+      setReviewFoodItems(
+        result.analysis.foodItems.map((item) => ({
+          name: item.name,
+          portionMultiplier: item.portionMultiplier,
+        }))
+      );
+      setMealSuccessMessage("AI suggestions loaded. Review and adjust anything before saving.");
+    } catch (analysisError) {
+      setMealError(
+        analysisError?.response?.data?.message ||
+          analysisError.message ||
+          "Unable to analyze this image right now"
+      );
+    } finally {
+      setIsMealAnalyzing(false);
+    }
+  }
+
+  function handleReviewItemChange(index, field, value) {
+    setReviewFoodItems((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]: value,
+            }
+          : item
+      )
+    );
+    setMealSuccessMessage("");
+  }
+
+  function handleAddReviewItem() {
+    setReviewFoodItems((current) => [...current, { name: "", portionMultiplier: 1 }]);
+    setMealSuccessMessage("");
+  }
+
+  function handleRemoveReviewItem(index) {
+    setReviewFoodItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
+    setMealSuccessMessage("");
+  }
+
+  async function handleRecalculateEstimate() {
+    setMealError("");
+    setMealSuccessMessage("");
+    setIsEstimatingNutrition(true);
+
+    try {
+      const sanitizedItems = reviewFoodItems
+        .map((item) => ({
+          name: item.name.trim(),
+          portionMultiplier: Number(item.portionMultiplier) || 1,
+        }))
+        .filter((item) => item.name);
+
+      const result = await estimateMealNutrition(sanitizedItems);
+
+      setReviewFoodItems(sanitizedItems);
+      setMealForm((current) => ({
+        ...current,
+        foodItems: sanitizedItems.map((item) => item.name).join(", "),
+        nutrition: {
+          calories: String(result.totals.calories),
+          protein: String(result.totals.protein),
+          carbs: String(result.totals.carbs),
+          fats: String(result.totals.fats),
+          sugar: String(result.totals.sugar),
+        },
+      }));
+      setAnalysisSummary((current) =>
+        current
+          ? {
+              ...current,
+              nutritionEstimate: result,
+              analysis: {
+                ...current.analysis,
+                foodItems: sanitizedItems,
+              },
+            }
+          : current
+      );
+      setMealSuccessMessage("Nutrition estimate recalculated from your reviewed items.");
+    } catch (error) {
+      setMealError(error?.response?.data?.message || "Unable to recalculate nutrition");
+    } finally {
+      setIsEstimatingNutrition(false);
+    }
   }
 
   async function handleCreateMeal(event) {
@@ -385,10 +591,10 @@ export function DashboardPage() {
     setIsMealSubmitting(true);
 
     try {
-      let imagePayload = null;
+      let imagePayload = mealForm.uploadedImage;
 
-      if (mealForm.imageFile) {
-        imagePayload = await uploadMealImage(mealForm.imageFile);
+      if (!imagePayload && mealForm.imageFile) {
+        imagePayload = await ensureUploadedMealImage();
       }
 
       const payload = {
@@ -409,7 +615,7 @@ export function DashboardPage() {
           fats: Number(mealForm.nutrition.fats),
           sugar: Number(mealForm.nutrition.sugar),
         },
-        source: imagePayload ? "image_upload" : "manual",
+        source: analysisSummary ? "ai_estimated" : imagePayload ? "image_upload" : "manual",
       };
 
       await createMealEntry(payload);
@@ -424,6 +630,8 @@ export function DashboardPage() {
 
         return "";
       });
+      setAnalysisSummary(null);
+      setReviewFoodItems([]);
       setMealSuccessMessage("Meal logged successfully");
 
       if (nextDate !== selectedDate) {
@@ -435,6 +643,21 @@ export function DashboardPage() {
       setMealError(saveError?.response?.data?.message || "Unable to log your meal right now");
     } finally {
       setIsMealSubmitting(false);
+    }
+  }
+
+  async function handleAssistantSubmit(event) {
+    event.preventDefault();
+    setAssistantError("");
+    setIsAssistantLoading(true);
+
+    try {
+      const response = await chatWithAssistant(assistantPrompt);
+      setAssistantReply(response);
+    } catch (error) {
+      setAssistantError(error?.response?.data?.message || "Unable to reach the assistant right now");
+    } finally {
+      setIsAssistantLoading(false);
     }
   }
 
@@ -466,8 +689,8 @@ export function DashboardPage() {
           </p>
         </div>
         <p className="max-w-xl text-sm text-ink/65">
-          This phase makes meal tracking real: users can upload food photos, log meals,
-          and compare today&apos;s intake against their saved goals.
+          The dashboard now combines goal targets, real meal logs, weekly progress, and
+          AI guidance into one daily operating view.
         </p>
       </div>
 
@@ -535,6 +758,12 @@ export function DashboardPage() {
               </h3>
             </div>
 
+            {progressError ? (
+              <div className="rounded-2xl border border-coral/30 bg-coral/10 px-4 py-3 text-sm text-ink/75">
+                {progressError}
+              </div>
+            ) : null}
+
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {intakeCards.map((card) => (
                 <article
@@ -547,6 +776,166 @@ export function DashboardPage() {
                 </article>
               ))}
             </div>
+
+            {!isProgressLoading && dailyProgress ? (
+              <article className="rounded-[1.5rem] border border-ink/10 bg-white/85 p-5 shadow-soft">
+                <p className="text-xs uppercase tracking-[0.2em] text-ink/40">Daily Progress</p>
+                <div className="mt-4 grid gap-4 md:grid-cols-4">
+                  {[
+                    ["Calories remaining", dailyProgress.comparison.caloriesRemaining],
+                    ["Protein remaining", `${dailyProgress.comparison.proteinRemaining}g`],
+                    ["Carbs remaining", `${dailyProgress.comparison.carbsRemaining}g`],
+                    ["Fats remaining", `${dailyProgress.comparison.fatsRemaining}g`],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <p className="text-sm text-ink/50">{label}</p>
+                      <p className="mt-1 text-xl font-semibold">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ) : null}
+          </section>
+
+          <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+            <article className="rounded-[1.75rem] border border-ink/10 bg-white/88 p-6 shadow-soft">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-ink/40">Weekly Progress</p>
+                  <h3 className="mt-2 font-serif text-3xl font-semibold">
+                    Consistency across the week
+                  </h3>
+                </div>
+                {!isProgressLoading && weeklyProgress ? (
+                  <div className="rounded-full bg-sand px-4 py-2 text-sm font-medium text-ink/70">
+                    {weeklyProgress.adherenceDays} aligned day(s)
+                  </div>
+                ) : null}
+              </div>
+
+              {isProgressLoading ? (
+                <div className="mt-6 text-sm text-ink/60">Loading weekly progress...</div>
+              ) : weeklyProgress ? (
+                <>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                    {[
+                      ["Average calories", weeklyProgress.averages.calories],
+                      ["Average protein", `${weeklyProgress.averages.protein}g`],
+                      ["Average meals", weeklyProgress.averages.mealCount],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-2xl border border-ink/10 bg-sand px-4 py-4">
+                        <p className="text-xs uppercase tracking-[0.15em] text-ink/45">{label}</p>
+                        <p className="mt-2 text-2xl font-semibold">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 space-y-3">
+                    {weeklyProgress.days.map((day) => {
+                      const percentage = Math.max(0, Math.min(100, day.comparison.caloriesProgress));
+
+                      return (
+                        <div key={day.date} className="rounded-2xl border border-ink/10 bg-white p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold">{day.date}</p>
+                              <p className="text-xs text-ink/50">
+                                {day.summary.calories} kcal and {day.summary.protein}g protein
+                              </p>
+                            </div>
+                            <p className="text-sm font-medium text-ink/60">
+                              {day.comparison.caloriesProgress}% of calorie target
+                            </p>
+                          </div>
+                          <div className="mt-3 h-3 overflow-hidden rounded-full bg-mist">
+                            <div
+                              className="h-full rounded-full bg-emerald transition"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : null}
+            </article>
+
+            <form
+              onSubmit={handleAssistantSubmit}
+              className="rounded-[1.75rem] border border-ink/10 bg-white/88 p-6 shadow-soft"
+            >
+              <div className="space-y-3">
+                <p className="text-xs uppercase tracking-[0.3em] text-ink/40">AI Coach</p>
+                <h3 className="font-serif text-3xl font-semibold">
+                  Ask for diet improvements based on your logs
+                </h3>
+                <p className="text-sm text-ink/60">
+                  The assistant uses your goal, today&apos;s intake, weekly averages, and recent
+                  meals to give practical next-step advice.
+                </p>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                {[
+                  "How can I improve my meals today?",
+                  "What should I eat next to hit protein?",
+                  "How can I reduce sugar this week?",
+                ].map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => setAssistantPrompt(prompt)}
+                    className="rounded-full border border-ink/10 bg-sand px-4 py-2 text-sm text-ink/70 transition hover:bg-white"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+
+              <label className="mt-6 block space-y-2">
+                <span className="text-sm font-medium text-ink/70">Your message</span>
+                <textarea
+                  rows="4"
+                  value={assistantPrompt}
+                  onChange={(event) => setAssistantPrompt(event.target.value)}
+                  className="w-full rounded-3xl border border-ink/10 bg-mist px-4 py-3 text-sm outline-none transition focus:border-emerald"
+                />
+              </label>
+
+              {assistantError ? (
+                <div className="mt-5 rounded-2xl border border-coral/30 bg-coral/10 px-4 py-3 text-sm text-ink/75">
+                  {assistantError}
+                </div>
+              ) : null}
+
+              <div className="mt-6 flex items-center justify-between gap-3">
+                <p className="max-w-xl text-sm text-ink/55">
+                  Suggestions are coaching guidance, not medical advice.
+                </p>
+                <button
+                  type="submit"
+                  disabled={isAssistantLoading}
+                  className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isAssistantLoading ? "Thinking..." : "Ask assistant"}
+                </button>
+              </div>
+
+              {assistantReply ? (
+                <div className="mt-6 rounded-[1.5rem] border border-ink/10 bg-white p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs uppercase tracking-[0.2em] text-ink/40">Assistant Reply</p>
+                    <span className="rounded-full bg-mist px-3 py-2 text-xs font-medium text-ink/55">
+                      {assistantReply.source.replaceAll("_", " ")}
+                    </span>
+                  </div>
+                  <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-ink/75">
+                    {assistantReply.reply}
+                  </p>
+                </div>
+              ) : null}
+            </form>
           </section>
 
           <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
@@ -716,8 +1105,8 @@ export function DashboardPage() {
                   Upload a meal photo and log nutrition
                 </h3>
                 <p className="text-sm text-ink/60">
-                  This phase keeps nutrient entry manual so the next phase can focus fully
-                  on AI recognition and nutrient estimation.
+                  Upload a meal image, let AI suggest the foods and nutrients, then review
+                  the result before saving the final log.
                 </p>
               </div>
 
@@ -794,6 +1183,104 @@ export function DashboardPage() {
                 </div>
               ) : null}
 
+              {analysisSummary ? (
+                <div className="mt-4 rounded-[1.5rem] border border-emerald/20 bg-mint p-4">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-emerald/80">
+                        AI Suggestion
+                      </p>
+                      <p className="mt-2 text-lg font-semibold">
+                        {analysisSummary.analysis.title}
+                      </p>
+                      <p className="mt-1 text-sm text-ink/70">
+                        Confidence: {analysisSummary.analysis.confidence}. Source:{" "}
+                        {analysisSummary.source.replaceAll("_", " ")}.
+                      </p>
+                    </div>
+                    <div className="rounded-full bg-white/80 px-4 py-2 text-sm font-medium text-ink/70">
+                      {analysisSummary.analysis.foodItems.length} detected item(s)
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {analysisSummary.nutritionEstimate.items.map((item) => (
+                      <span
+                        key={`${item.name}-${item.matchedFood}`}
+                        className="rounded-full border border-ink/10 bg-white/85 px-3 py-2 text-sm text-ink/75"
+                      >
+                        {item.name} x{item.portionMultiplier}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {reviewFoodItems.length > 0 ? (
+                <div className="mt-4 rounded-[1.5rem] border border-ink/10 bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.2em] text-ink/40">AI Review</p>
+                      <p className="mt-1 text-sm text-ink/60">
+                        Edit detected foods and portion multipliers, then recalculate nutrients.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddReviewItem}
+                      className="rounded-full border border-ink/10 px-4 py-2 text-sm font-medium text-ink/70 transition hover:bg-ink hover:text-white"
+                    >
+                      Add item
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {reviewFoodItems.map((item, index) => (
+                      <div
+                        key={`${index}-${item.name}`}
+                        className="grid gap-3 rounded-2xl border border-ink/10 bg-mist p-4 md:grid-cols-[1fr_180px_auto]"
+                      >
+                        <input
+                          value={item.name}
+                          onChange={(event) => handleReviewItemChange(index, "name", event.target.value)}
+                          className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald"
+                          placeholder="Food item"
+                        />
+                        <input
+                          min="0.25"
+                          step="0.25"
+                          type="number"
+                          value={item.portionMultiplier}
+                          onChange={(event) =>
+                            handleReviewItemChange(index, "portionMultiplier", event.target.value)
+                          }
+                          className="w-full rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald"
+                          placeholder="Portion"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReviewItem(index)}
+                          className="rounded-full border border-ink/10 px-4 py-2 text-sm font-medium text-ink/70 transition hover:bg-ink hover:text-white"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleRecalculateEstimate}
+                      disabled={isEstimatingNutrition}
+                      className="rounded-full border border-ink/10 bg-white px-5 py-3 text-sm font-semibold text-ink transition hover:bg-ink hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isEstimatingNutrition ? "Recalculating..." : "Recalculate estimate"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                 {[
                   ["calories", "Calories"],
@@ -843,16 +1330,26 @@ export function DashboardPage() {
 
               <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
                 <p className="max-w-xl text-sm text-ink/55">
-                  Manual entry gives us clean nutrition records now, while image upload
-                  readies the app for AI-powered food analysis next.
+                  You can still override every AI-filled field before saving, which keeps
+                  the log accurate even when image recognition is imperfect.
                 </p>
-                <button
-                  type="submit"
-                  disabled={isMealSubmitting}
-                  className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isMealSubmitting ? "Logging meal..." : "Log meal"}
-                </button>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleAnalyzeMeal}
+                    disabled={isMealAnalyzing || (!mealForm.imageFile && !mealForm.uploadedImage)}
+                    className="rounded-full border border-ink/10 bg-white px-6 py-3 text-sm font-semibold text-ink transition hover:bg-ink hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isMealAnalyzing ? "Analyzing image..." : "Analyze with AI"}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isMealSubmitting}
+                    className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-white transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isMealSubmitting ? "Logging meal..." : "Log meal"}
+                  </button>
+                </div>
               </div>
             </form>
 

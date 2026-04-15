@@ -1,5 +1,7 @@
 import path from "path";
 import { env } from "../../config/env.js";
+import { analyzeMealImageWithAi } from "../../services/ai/meal-analysis.service.js";
+import { estimateNutritionFromItems } from "../../services/nutrition/meal-estimator.service.js";
 import { asyncHandler } from "../../utils/async-handler.js";
 import { AppError } from "../../utils/app-error.js";
 import {
@@ -29,9 +31,27 @@ export const uploadMealImage = asyncHandler(async (req, res) => {
 });
 
 export const analyzeMealImage = asyncHandler(async (req, res) => {
-  res.status(501).json({
-    success: false,
-    message: "AI meal analysis will be added in the next phase",
+  const result = await analyzeMealImageWithAi({
+    imagePath: req.body.imagePath,
+    imageUrl: req.body.imageUrl,
+    originalName: req.body.originalName,
+    mealTypeHint: req.body.mealTypeHint,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "Meal image analyzed",
+    data: result,
+  });
+});
+
+export const estimateMealNutrition = asyncHandler(async (req, res) => {
+  const nutritionEstimate = estimateNutritionFromItems(req.body.foodItems);
+
+  res.status(200).json({
+    success: true,
+    message: "Nutrition estimated successfully",
+    data: nutritionEstimate,
   });
 });
 

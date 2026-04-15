@@ -1,19 +1,10 @@
 import { Router } from "express";
+import { requireAuth } from "../../middleware/auth.js";
+import { getDailyProgress, getWeeklyProgress } from "./progress.controller.js";
 
 const router = Router();
 
-router.get("/daily", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Daily dashboard placeholder",
-  });
-});
-
-router.get("/weekly", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Weekly dashboard placeholder",
-  });
-});
+router.get("/daily", requireAuth, getDailyProgress);
+router.get("/weekly", requireAuth, getWeeklyProgress);
 
 export default router;
