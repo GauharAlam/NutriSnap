@@ -11,7 +11,8 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import goalsRoutes from "./modules/goals/goals.routes.js";
 import mealsRoutes from "./modules/meals/meals.routes.js";
 import progressRoutes from "./modules/progress/progress.routes.js";
-
+import workoutsRoutes from "./modules/workouts/workouts.routes.js";
+import workoutPlansRoutes from "./modules/workout-plans/workout-plans.routes.js";
 export const app = express();
 
 app.use(
@@ -36,8 +37,10 @@ app.get("/api/health", (req, res) => {
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/meals", mealsRoutes);
 app.use("/api/v1/goals", goalsRoutes);
-app.use("/api/v1/dashboard", progressRoutes);
+app.use("/api/v1/progress", progressRoutes);
 app.use("/api/v1/assistant", assistantRoutes);
+app.use("/api/v1/workouts", workoutsRoutes);
+app.use("/api/v1/workout-plans", workoutPlansRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

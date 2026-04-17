@@ -99,7 +99,7 @@ async function callOpenAiMealAnalysis({ imagePath, mealTypeHint, originalName })
     `Meal type hint: ${mealTypeHint || "unknown"}.`,
   ].join(" ");
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -107,12 +107,13 @@ async function callOpenAiMealAnalysis({ imagePath, mealTypeHint, originalName })
     },
     body: JSON.stringify({
       model: env.openaiModel,
-      input: [
+      response_format: { type: "json_object" },
+      messages: [
         {
           role: "user",
           content: [
-            { type: "input_text", text: prompt },
-            { type: "input_image", image_url: dataUrl, detail: "high" },
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: dataUrl } },
           ],
         },
       ],
@@ -125,7 +126,64 @@ async function callOpenAiMealAnalysis({ imagePath, mealTypeHint, originalName })
   }
 
   const data = await response.json();
-  const outputText = data.output_text || "";
+  const outputText = data.choices[0]?.message?.content || "";
+  const parsed = JSON.parse(extractJson(outputText));
+
+  return sanitizeAiResult(parsed, mealTypeHint || "snack");
+}
+
+async function callGeminiMealAnalysis({ imagePath, mealTypeHint, originalName }) {
+  const absolutePath = resolveUploadPath(imagePath);
+  const fileBuffer = await fs.readFile(absolutePath);
+  const base64 = fileBuffer.toString("base64");
+  const mimeType = guessMimeType(absolutePath);
+
+  const prompt = [
+    "Analyze this food image for a fitness and nutrition tracker.",
+    "Return JSON only with these keys: title, mealType, foodItems, notes, confidence.",
+    'mealType must be one of "breakfast", "lunch", "dinner", "snack".',
+    "foodItems must be an array of objects with keys name and portionMultiplier.",
+    "portionMultiplier should be a number where 1 is a normal serving, 0.5 is half, 1.5 is larger, etc.",
+    "Keep 2 to 5 food items maximum.",
+    "Use the image first, and use filename or meal type hint only as a weak secondary signal.",
+    `Filename hint: ${originalName || "unknown"}.`,
+    `Meal type hint: ${mealTypeHint || "unknown"}.`,
+  ].join(" ");
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${env.geminiModel}:generateContent?key=${env.geminiApiKey}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: base64,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new AppError(`Gemini image analysis failed: ${errorText}`, 502);
+  }
+
+  const data = await response.json();
+  const outputText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   const parsed = JSON.parse(extractJson(outputText));
 
   return sanitizeAiResult(parsed, mealTypeHint || "snack");
@@ -157,13 +215,17 @@ export async function analyzeMealImageWithAi(payload) {
   let source = "fallback_estimator";
 
   try {
-    if (env.openaiApiKey) {
+    if (env.geminiApiKey) {
+      analysis = await callGeminiMealAnalysis(payload);
+      source = "gemini_ai";
+    } else if (env.openaiApiKey) {
       analysis = await callOpenAiMealAnalysis(payload);
-      source = "ai_with_estimator";
+      source = "openai_ai";
     } else {
       analysis = buildFallbackAnalysis(payload);
     }
   } catch (error) {
+    console.error("AI Analysis Error:", error);
     analysis = buildFallbackAnalysis(payload);
     analysis.notes = `${analysis.notes} Live analysis error: ${error.message}`;
     source = "fallback_after_error";

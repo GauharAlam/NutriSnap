@@ -3,43 +3,22 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../features/auth/useAuth";
 
 const goalOptions = [
-  { value: "weight_loss", label: "Weight loss" },
-  { value: "muscle_gain", label: "Muscle gain" },
-  { value: "maintenance", label: "Maintenance" },
+  { value: "weight_loss", label: "Weight Loss", icon: "🔥" },
+  { value: "muscle_gain", label: "Muscle Gain", icon: "💪" },
+  { value: "maintenance", label: "Maintenance", icon: "⚡" },
 ];
-
-const socialProof = [
-  "AI meal analysis with human review before save",
-  "Goal-aware calorie and macro tracking",
-  "Session-based dashboard ready for protected routes",
-];
-
-const loginInitialState = {
-  email: "",
-  password: "",
-};
-
-const registerInitialState = {
-  name: "",
-  email: "",
-  password: "",
-  goalType: "maintenance",
-};
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, isBootstrapping, login, register } = useAuth();
   const [mode, setMode] = useState("login");
-  const [loginForm, setLoginForm] = useState(loginInitialState);
-  const [registerForm, setRegisterForm] = useState(registerInitialState);
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [registerForm, setRegisterForm] = useState({ name: "", email: "", password: "", goalType: "maintenance" });
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const redirectTo = useMemo(
-    () => location.state?.from?.pathname || "/dashboard",
-    [location.state]
-  );
+  const redirectTo = useMemo(() => location.state?.from?.pathname || "/home", [location.state]);
 
   useEffect(() => {
     if (!isBootstrapping && isAuthenticated) {
@@ -47,31 +26,24 @@ export function LoginPage() {
     }
   }, [isAuthenticated, isBootstrapping, navigate, redirectTo]);
 
-  function handleLoginChange(event) {
-    const { name, value } = event.target;
-    setLoginForm((current) => ({ ...current, [name]: value }));
+  function handleLoginChange(e) {
+    setLoginForm((c) => ({ ...c, [e.target.name]: e.target.value }));
   }
 
-  function handleRegisterChange(event) {
-    const { name, value } = event.target;
-    setRegisterForm((current) => ({ ...current, [name]: value }));
+  function handleRegisterChange(e) {
+    setRegisterForm((c) => ({ ...c, [e.target.name]: e.target.value }));
   }
 
-  async function handleSubmit(event) {
-    event.preventDefault();
+  async function handleSubmit(e) {
+    e.preventDefault();
     setError("");
     setIsSubmitting(true);
-
     try {
-      if (mode === "login") {
-        await login(loginForm);
-      } else {
-        await register(registerForm);
-      }
-
+      if (mode === "login") await login(loginForm);
+      else await register(registerForm);
       navigate(redirectTo, { replace: true });
-    } catch (submitError) {
-      setError(submitError.message);
+    } catch (err) {
+      setError(err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -80,145 +52,156 @@ export function LoginPage() {
   const activeForm = mode === "login" ? loginForm : registerForm;
 
   return (
-    <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-      <div className="rounded-[2rem] border border-ink/10 bg-white/80 p-8 shadow-soft">
-        <div className="space-y-4">
-          <p className="text-xs uppercase tracking-[0.35em] text-ink/45">Phase 2</p>
-          <h2 className="font-serif text-4xl font-semibold">
-            Account access that flows into the tracking experience
-          </h2>
-          <p className="text-sm leading-6 text-ink/65">
-            This screen now supports registration and sign-in against the backend JWT
-            API, then forwards authenticated users into the protected dashboard.
+    <div className="min-h-screen flex flex-col items-center justify-center py-10 px-4 -mx-4">
+      {/* Background accents */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-gradient-to-br from-neon-blue/10 to-neon-purple/10 blur-3xl" />
+
+      <div className="relative z-10 w-full max-w-md space-y-6 animate-slide-up">
+        {/* Logo */}
+        <div className="text-center space-y-3">
+          <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-br from-neon-blue to-neon-purple items-center justify-center shadow-neon-blue mx-auto">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+            </svg>
+          </div>
+          <h1 className="font-display text-3xl font-bold text-white">
+            Fit<span className="text-gradient">Forge</span>
+          </h1>
+          <p className="text-sm text-dark-200">
+            {mode === "login" ? "Welcome back, warrior" : "Start your fitness journey"}
           </p>
         </div>
 
-        <div className="mt-8 grid gap-4">
-          {socialProof.map((item) => (
-            <div
-              key={item}
-              className="rounded-2xl border border-ink/10 bg-sand px-4 py-4 text-sm text-ink/75"
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="rounded-[2rem] border border-ink/10 bg-white/88 p-8 shadow-soft">
-        <div className="flex rounded-full border border-ink/10 bg-mist p-1">
+        {/* Tab switch */}
+        <div className="glass-card-static p-1 flex gap-1">
           {[
-            ["login", "Sign in"],
-            ["register", "Create account"],
+            ["login", "Sign In"],
+            ["register", "Sign Up"],
           ].map(([value, label]) => (
             <button
               key={value}
               type="button"
-              onClick={() => {
-                setMode(value);
-                setError("");
-              }}
-              className={[
-                "flex-1 rounded-full px-4 py-3 text-sm font-semibold transition",
-                mode === value ? "bg-ink text-white" : "text-ink/65 hover:bg-white",
-              ].join(" ")}
+              onClick={() => { setMode(value); setError(""); }}
+              className={`flex-1 py-3 rounded-[20px] text-sm font-semibold transition-all duration-300 ${
+                mode === value
+                  ? "bg-gradient-to-r from-neon-blue to-neon-purple text-white shadow-neon-blue"
+                  : "text-dark-200 hover:text-white"
+              }`}
             >
               {label}
             </button>
           ))}
         </div>
 
-        <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.35em] text-ink/45">Details</p>
-            <h3 className="font-serif text-3xl font-semibold">
-              {mode === "login" ? "Welcome back" : "Start with your goal"}
-            </h3>
-            <p className="text-sm text-ink/60">
-              {mode === "login"
-                ? "Use your email and password to reopen your dashboard."
-                : "Create a new account and attach it to a starting fitness goal."}
-            </p>
-          </div>
+        {/* Form card */}
+        <div className="glass-card-static p-6 space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === "register" && (
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold text-dark-200 uppercase tracking-wider">Full Name</span>
+                <input
+                  required
+                  name="name"
+                  value={registerForm.name}
+                  onChange={handleRegisterChange}
+                  className="input-glass"
+                  placeholder="Enter your name"
+                />
+              </label>
+            )}
 
-          {mode === "register" ? (
             <label className="block space-y-2">
-              <span className="text-sm font-medium text-ink/75">Full name</span>
+              <span className="text-xs font-semibold text-dark-200 uppercase tracking-wider">Email</span>
               <input
                 required
-                name="name"
-                value={registerForm.name}
-                onChange={handleRegisterChange}
-                className="w-full rounded-2xl border border-ink/10 bg-mist px-4 py-3 text-sm outline-none transition focus:border-emerald"
-                placeholder="Alex Carter"
+                type="email"
+                name="email"
+                value={activeForm.email}
+                onChange={mode === "login" ? handleLoginChange : handleRegisterChange}
+                className="input-glass"
+                placeholder="you@example.com"
               />
             </label>
-          ) : null}
 
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-ink/75">Email</span>
-            <input
-              required
-              type="email"
-              name="email"
-              value={activeForm.email}
-              onChange={mode === "login" ? handleLoginChange : handleRegisterChange}
-              className="w-full rounded-2xl border border-ink/10 bg-mist px-4 py-3 text-sm outline-none transition focus:border-emerald"
-              placeholder="you@example.com"
-            />
-          </label>
-
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-ink/75">Password</span>
-            <input
-              required
-              minLength={8}
-              type="password"
-              name="password"
-              value={activeForm.password}
-              onChange={mode === "login" ? handleLoginChange : handleRegisterChange}
-              className="w-full rounded-2xl border border-ink/10 bg-mist px-4 py-3 text-sm outline-none transition focus:border-emerald"
-              placeholder="At least 8 characters"
-            />
-          </label>
-
-          {mode === "register" ? (
             <label className="block space-y-2">
-              <span className="text-sm font-medium text-ink/75">Primary goal</span>
-              <select
-                name="goalType"
-                value={registerForm.goalType}
-                onChange={handleRegisterChange}
-                className="w-full rounded-2xl border border-ink/10 bg-mist px-4 py-3 text-sm outline-none transition focus:border-emerald"
-              >
-                {goalOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <span className="text-xs font-semibold text-dark-200 uppercase tracking-wider">Password</span>
+              <input
+                required
+                minLength={8}
+                type="password"
+                name="password"
+                value={activeForm.password}
+                onChange={mode === "login" ? handleLoginChange : handleRegisterChange}
+                className="input-glass"
+                placeholder="At least 8 characters"
+              />
             </label>
-          ) : null}
 
-          {error ? (
-            <div className="rounded-2xl border border-coral/30 bg-coral/10 px-4 py-3 text-sm text-ink/75">
-              {error}
-            </div>
-          ) : null}
+            {mode === "register" && (
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-dark-200 uppercase tracking-wider">Fitness Goal</span>
+                <div className="grid grid-cols-3 gap-2">
+                  {goalOptions.map((opt) => (
+                    <button
+                      type="button"
+                      key={opt.value}
+                      onClick={() => setRegisterForm((c) => ({ ...c, goalType: opt.value }))}
+                      className={`flex flex-col items-center gap-1 py-3 px-2 rounded-2xl border text-xs font-medium transition-all duration-300 ${
+                        registerForm.goalType === opt.value
+                          ? "border-neon-blue/50 bg-neon-blue/10 text-neon-blue"
+                          : "border-white/8 bg-glass-white text-dark-200 hover:border-white/15"
+                      }`}
+                    >
+                      <span className="text-lg">{opt.icon}</span>
+                      <span>{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-70"
-          >
-            {isSubmitting
-              ? "Submitting..."
-              : mode === "login"
-                ? "Sign in to dashboard"
-                : "Create account"}
-          </button>
-        </form>
+            {error && (
+              <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="btn-gradient w-full disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <span>
+                {isSubmitting ? "Loading..." : mode === "login" ? "Sign In" : "Create Account"}
+              </span>
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="flex items-center gap-4">
+            <div className="flex-1 h-px bg-white/8" />
+            <span className="text-xs text-dark-300">or continue with</span>
+            <div className="flex-1 h-px bg-white/8" />
+          </div>
+
+          {/* Social buttons */}
+          <div className="grid grid-cols-2 gap-3">
+            <button className="btn-ghost flex items-center justify-center gap-2 py-3 text-sm">
+              <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              Google
+            </button>
+            <button className="btn-ghost flex items-center justify-center gap-2 py-3 text-sm">
+              <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+              Apple
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <p className="text-center text-xs text-dark-400">
+          By continuing, you agree to our Terms of Service & Privacy Policy
+        </p>
       </div>
-    </section>
+    </div>
   );
 }

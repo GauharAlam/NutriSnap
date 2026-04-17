@@ -3,12 +3,18 @@ import { useAuth } from "./useAuth";
 
 function RouteLoader() {
   return (
-    <div className="rounded-[2rem] border border-ink/10 bg-white/85 p-10 text-center shadow-soft">
-      <p className="text-xs uppercase tracking-[0.35em] text-ink/40">Session</p>
-      <h2 className="mt-3 font-serif text-3xl font-semibold">Restoring your workspace</h2>
-      <p className="mt-3 text-sm text-ink/60">
-        We&apos;re checking your authentication state so the right screen shows up cleanly.
-      </p>
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-dark-950">
+      <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-neon-blue to-neon-purple flex items-center justify-center shadow-neon-blue mb-4">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="w-1.5 h-1.5 rounded-full bg-neon-blue animate-bounce" style={{ animationDelay: "0ms" }} />
+        <div className="w-1.5 h-1.5 rounded-full bg-neon-purple animate-bounce" style={{ animationDelay: "200ms" }} />
+        <div className="w-1.5 h-1.5 rounded-full bg-neon-blue animate-bounce" style={{ animationDelay: "400ms" }} />
+      </div>
+      <p className="mt-4 text-sm text-dark-300">Restoring your session...</p>
     </div>
   );
 }
@@ -36,7 +42,7 @@ export function GuestOnlyRoute() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   return <Outlet />;

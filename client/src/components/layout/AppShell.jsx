@@ -1,76 +1,99 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../../features/auth/useAuth";
 
+const navItems = [
+  {
+    to: "/home",
+    label: "Home",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
+      </svg>
+    ),
+  },
+  {
+    to: "/workouts",
+    label: "Workouts",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6.5 6.5h11" />
+        <path d="M6.5 17.5h11" />
+        <path d="M12 2v20" />
+        <rect x="2" y="5" width="4" height="14" rx="1" />
+        <rect x="18" y="5" width="4" height="14" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    to: "/nutrition",
+    label: "Nutrition",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8h1a4 4 0 0 1 0 8h-1" />
+        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z" />
+        <line x1="6" y1="1" x2="6" y2="4" />
+        <line x1="10" y1="1" x2="10" y2="4" />
+        <line x1="14" y1="1" x2="14" y2="4" />
+      </svg>
+    ),
+  },
+  {
+    to: "/progress",
+    label: "Progress",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" />
+        <line x1="12" y1="20" x2="12" y2="4" />
+        <line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+    ),
+  },
+  {
+    to: "/profile",
+    label: "Profile",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+];
+
+const noNavRoutes = ["/", "/onboarding", "/login"];
+
 export function AppShell() {
-  const navigate = useNavigate();
-  const { isAuthenticated, isBootstrapping, logout, user } = useAuth();
-
-  const navigation = isAuthenticated
-    ? [
-        { label: "Overview", to: "/" },
-        { label: "Dashboard", to: "/dashboard" },
-      ]
-    : [
-        { label: "Overview", to: "/" },
-        { label: "Login", to: "/login" },
-      ];
-
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
-  }
+  const location = useLocation();
+  const { isAuthenticated } = useAuth();
+  const showBottomNav = !noNavRoutes.includes(location.pathname) && isAuthenticated;
 
   return (
-    <div className="min-h-screen bg-grain text-ink">
-      <header className="border-b border-ink/10 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-emerald/70">
-              FitFuel AI
-            </p>
-            <h1 className="font-serif text-2xl font-semibold">Nutrition with momentum</h1>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:items-end">
-            <nav className="flex flex-wrap gap-2 rounded-full border border-ink/10 bg-white/80 p-1 shadow-soft">
-              {navigation.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    [
-                      "rounded-full px-4 py-2 text-sm font-medium transition",
-                      isActive ? "bg-ink text-white" : "text-ink/70 hover:bg-ink/5",
-                    ].join(" ")
-                  }
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-
-            {!isBootstrapping && isAuthenticated ? (
-              <div className="flex items-center gap-3 self-start rounded-full border border-ink/10 bg-white/80 px-3 py-2 shadow-soft sm:self-auto">
-                <div className="text-right">
-                  <p className="text-xs uppercase tracking-[0.2em] text-ink/40">Signed in</p>
-                  <p className="text-sm font-semibold">{user?.name}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-white transition hover:bg-ink/90"
-                >
-                  Sign out
-                </button>
-              </div>
-            ) : null}
-          </div>
+    <div className="min-h-screen bg-mesh text-dark-50">
+      <main className={`mx-auto max-w-lg px-4 ${showBottomNav ? "pb-24" : ""}`}>
+        <div className="page-enter">
+          <Outlet />
         </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-6 py-10">
-        <Outlet />
       </main>
+
+      {showBottomNav && (
+        <nav className="bottom-nav fixed bottom-0 left-0 right-0 z-50">
+          <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `nav-item ${isActive ? "active" : ""}`
+                }
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

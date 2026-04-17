@@ -12,5 +12,7 @@ export const env = {
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "dev_access_secret",
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "dev_refresh_secret",
   openaiApiKey: process.env.OPENAI_API_KEY || "",
-  openaiModel: process.env.OPENAI_MODEL || "gpt-4.1-mini",
+  openaiModel: process.env.OPENAI_MODEL || "gpt-4o",
+  geminiApiKey: process.env.GEMINI_API_KEY || "",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-1.5-flash",
 };
