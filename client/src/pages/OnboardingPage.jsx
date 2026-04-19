@@ -44,7 +44,7 @@ export function OnboardingPage() {
   }
 
   function finishOnboarding() {
-    localStorage.setItem("fitforge_onboarded", "true");
+    localStorage.setItem("nutrisnap_onboarded", "true");
     navigate("/login", { replace: true });
   }
 

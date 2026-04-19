@@ -3,12 +3,12 @@ version: "3.9"
 services:
   mongodb:
     image: mongo:7
-    container_name: fitness-nutrition-mongodb
+    container_name: nutrisnap-mongodb
     restart: unless-stopped
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_DATABASE: fitness_nutrition_app
+      MONGO_INITDB_DATABASE: NutriSnap
     volumes:
       - mongo_data:/data/db
     healthcheck:
@@ -27,13 +27,14 @@ services:
       mongodb:
         condition: service_healthy
     env_file:
-      - .env
+      - server/.env
     environment:
-      MONGODB_URI: mongodb://mongodb:27017/fitness_nutrition_app
+      MONGODB_URI: mongodb://mongodb:27017/NutriSnap
       CLIENT_URL: http://localhost:8080
-      SERVER_URL: http://localhost:5000
+      SERVER_URL: http://localhost:5001
+      NODE_ENV: production
     ports:
-      - "5000:5000"
+      - "5001:5001"
     volumes:
       - uploads_data:/app/uploads
 

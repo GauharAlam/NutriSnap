@@ -15,6 +15,7 @@ import { NutritionPage } from "../../pages/NutritionPage";
 import { ProgressPage } from "../../pages/ProgressPage";
 import { ProfilePage } from "../../pages/ProfilePage";
 import { PreviewPage } from "../../pages/PreviewPage";
+import { NotFoundPage } from "../../pages/NotFoundPage";
 
 export function AppRouter() {
   return (
@@ -41,6 +42,9 @@ export function AppRouter() {
             <Route path="/progress" element={<ProgressPage />} />
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
+
+          {/* 404 Catch-all */}
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

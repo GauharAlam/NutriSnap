@@ -44,9 +44,21 @@ function MacroBar({ value, max, color, label, unit = "g" }) {
 }
 
 export function NutritionPage() {
-  const [waterGlasses, setWaterGlasses] = useState(5);
+  const [waterGlasses, setWaterGlasses] = useState(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const saved = localStorage.getItem(`water-${today}`);
+    return saved !== null ? parseInt(saved, 10) : 0;
+  });
+  const [caloriesBurned, setCaloriesBurned] = useState(0);
+
+  useEffect(() => {
+    localStorage.setItem(`water-${new Date().toISOString().split("T")[0]}`, waterGlasses);
+  }, [waterGlasses]);
   const [meals, setMeals] = useState([]);
   const fileInputRef = useRef(null);
+
+  // AI Flow State
+  const [goalTargets, setGoalTargets] = useState({ calories: 2400, protein: 170, carbs: 250, fats: 75 });
 
   // AI Flow State
   const [isUploading, setIsUploading] = useState(false);
@@ -57,8 +69,35 @@ export function NutritionPage() {
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
 
   useEffect(() => {
-    fetchMeals();
+    fetchData();
   }, []);
+
+  async function fetchData() {
+    try {
+      const [mealsRes, goalsRes, workoutRes] = await Promise.all([
+        apiClient.get("/meals"),
+        apiClient.get("/goals"),
+        apiClient.get("/workouts"),
+      ]);
+      if (mealsRes.data?.success) {
+        setMeals(mealsRes.data.data.meals || []);
+      }
+      if (goalsRes.data?.success && goalsRes.data.data?.dailyTargets) {
+        const t = goalsRes.data.data.dailyTargets;
+        setGoalTargets({
+          calories: t.calories || 2400,
+          protein: t.protein || 170,
+          carbs: t.carbs || 250,
+          fats: t.fats || 75,
+        });
+      }
+      if (workoutRes.data?.success) {
+        setCaloriesBurned(workoutRes.data.data.stats?.totalCalories || 0);
+      }
+    } catch (err) {
+      console.error("Failed to load nutrition data:", err);
+    }
+  }
 
   async function fetchMeals() {
     try {
@@ -72,7 +111,7 @@ export function NutritionPage() {
   }
 
   // Derived aggregates
-  const totalTarget = { calories: 2400, protein: 170, carbs: 250, fats: 75 };
+  const totalTarget = goalTargets;
   const totalConsumed = {
     calories: meals?.reduce((a, m) => a + (m.nutrition?.calories || 0), 0) || 0,
     protein: meals?.reduce((a, m) => a + (m.nutrition?.protein || 0), 0) || 0,
@@ -178,8 +217,8 @@ export function NutritionPage() {
             <div className="grid grid-cols-3 gap-2">
               {[
                 { label: "Eaten", value: totalConsumed.calories, color: "text-neon-orange" },
-                { label: "Burned", value: 320, color: "text-neon-pink" },
-                { label: "Net", value: totalConsumed.calories - 320, color: "text-neon-green" },
+                { label: "Burned", value: caloriesBurned, color: "text-neon-pink" },
+                { label: "Net", value: totalConsumed.calories - caloriesBurned, color: "text-neon-green" },
               ].map((s) => (
                 <div key={s.label} className="text-center">
                   <p className={`text-sm font-bold ${s.color}`}>{s.value}</p>
@@ -276,14 +315,18 @@ export function NutritionPage() {
         ))}
       </div>
 
-      {/* Quick Tips */}
+      {/* Dynamic Tips */}
       <div className="glass-card-static p-5 border-neon-green/15 animate-slide-up delay-500">
         <div className="flex items-center gap-3 mb-3">
           <span className="text-xl">🥦</span>
           <p className="text-sm font-semibold text-white">Nutrition Tip</p>
         </div>
         <p className="text-xs text-dark-200 leading-relaxed">
-          You're 72g away from your protein goal. Consider adding a post-workout shake or Greek yogurt to close the gap. Consistent protein intake supports muscle recovery and growth.
+          {totalConsumed.protein < totalTarget.protein
+            ? `You're ${totalTarget.protein - totalConsumed.protein}g away from your protein goal. Consider adding a post-workout shake or Greek yogurt to close the gap.`
+            : totalConsumed.calories > totalTarget.calories
+              ? `You've exceeded your calorie target by ${totalConsumed.calories - totalTarget.calories} kcal. Consider lighter meals for the rest of the day.`
+              : `Great job! You're on track with your nutrition goals today. Keep it up! 💪`}
         </p>
       </div>
       {/* AI Modal */}

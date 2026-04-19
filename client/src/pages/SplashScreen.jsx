@@ -10,7 +10,7 @@ export function SplashScreen() {
     const t2 = setTimeout(() => setPhase(2), 1200);
     const t3 = setTimeout(() => setPhase(3), 2000);
     const t4 = setTimeout(() => {
-      const seen = localStorage.getItem("fitforge_onboarded");
+      const seen = localStorage.getItem("nutrisnap_onboarded");
       navigate(seen ? "/login" : "/landing", { replace: true });
     }, 3500);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
@@ -63,7 +63,7 @@ export function SplashScreen() {
         </div>
 
         <h1 className="font-display text-4xl font-bold tracking-tight text-white">
-          Fit<span className="text-gradient">Forge</span>
+          Nutri<span className="text-gradient">Snap</span>
         </h1>
       </div>
 

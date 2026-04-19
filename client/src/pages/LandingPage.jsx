@@ -55,6 +55,7 @@ export function LandingPage() {
             Master Your <br />
             <span className="text-gradient">Nutrition & Fitness</span>
           </h1>
+          <p className="text-xs text-neon-blue/60 font-semibold tracking-widest uppercase mt-2">by NutriSnap</p>
           
           <p className="text-lg text-dark-200 leading-relaxed max-w-lg mx-auto">
             The ultimate AI-powered companion for tracking meals, workouts, and progress with cinematic precision.
@@ -146,7 +147,7 @@ export function LandingPage() {
       {/* Simple Footer */}
       <footer className="px-6 py-10 border-t border-white/5 text-center">
         <p className="text-[10px] text-dark-500 tracking-[0.3em] uppercase">
-          FitForge © 2026 — The Premium AI Fitness Experience
+          NutriSnap © 2026 — The Premium AI Fitness Experience
         </p>
       </footer>
     </div>

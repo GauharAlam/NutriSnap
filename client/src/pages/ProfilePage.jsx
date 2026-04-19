@@ -42,6 +42,7 @@ export function ProfilePage() {
   const [workoutStats, setWorkoutStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isUpdatingGoal, setIsUpdatingGoal] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     async function fetchData() {
@@ -76,6 +77,7 @@ export function ProfilePage() {
     if (goalData?.goalType === type || isUpdatingGoal) return;
     
     setIsUpdatingGoal(true);
+    setError("");
     try {
       const payload = {
         goalType: type,
@@ -89,7 +91,7 @@ export function ProfilePage() {
         setGoalData(data.data);
       }
     } catch (err) {
-      setError("Failed to update goal");
+      setError("Failed to update goal. Try again.");
     } finally {
       setIsUpdatingGoal(false);
     }
@@ -97,46 +99,57 @@ export function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="pt-6 pb-4 space-y-6 animate-pulse px-1">
-        <div className="h-48 bg-glass-light rounded-3xl" />
+      <div className="pt-6 pb-4 space-y-5 animate-pulse px-1">
+        <div className="glass-card-static p-6">
+          <div className="flex flex-col items-center space-y-3">
+            <div className="w-24 h-24 bg-glass-light rounded-3xl" />
+            <div className="h-5 w-36 bg-glass-light rounded-full" />
+            <div className="h-3 w-48 bg-glass-light rounded-full" />
+          </div>
+        </div>
         <div className="h-32 bg-glass-light rounded-2xl" />
-        <div className="h-64 bg-glass-light rounded-2xl" />
+        <div className="h-48 bg-glass-light rounded-2xl" />
       </div>
     );
   }
 
   return (
-    <div className="pt-6 pb-4 space-y-6">
+    <div className="pt-6 pb-4 space-y-5">
       {/* Profile Header */}
       <div className="glass-card-static p-6 text-center animate-slide-up">
         <div className="relative inline-block">
-          <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-neon-blue to-neon-purple flex items-center justify-center text-white text-3xl font-bold shadow-neon-blue mx-auto">
+          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-neon-blue to-neon-purple flex items-center justify-center text-white text-2xl font-bold shadow-neon-blue mx-auto">
             {firstName.charAt(0)}
           </div>
-          <button className="absolute -bottom-1 -right-1 w-8 h-8 rounded-xl bg-dark-700 border border-white/10 flex items-center justify-center text-xs hover:bg-dark-600 transition-colors">
-            ✏️
-          </button>
         </div>
-        <h2 className="font-display text-xl font-bold text-white mt-4">{user?.name}</h2>
-        <p className="text-sm text-dark-300">{user?.email}</p>
+        <h2 className="font-display text-lg font-bold text-white mt-3">{user?.name}</h2>
+        <p className="text-xs text-dark-300">{user?.email}</p>
 
-        {/* Quick stats - REAL DATA */}
-        <div className="grid grid-cols-3 gap-3 mt-5">
+        {/* Quick stats */}
+        <div className="grid grid-cols-3 gap-2.5 mt-4">
           {[
             { label: "Workouts", value: workoutStats?.totalWorkouts || 0 },
             { label: "Active Mins", value: workoutStats?.totalDuration || 0 },
             { label: "Level", value: (workoutStats?.totalWorkouts || 0) > 10 ? "Pro" : "Rookie" },
           ].map((s) => (
-            <div key={s.label} className="bg-glass-white rounded-2xl py-3 border border-white/5">
+            <div key={s.label} className="bg-glass-light rounded-2xl py-3 border border-white/5">
               <p className="text-lg font-bold text-white">{s.value}</p>
-              <p className="text-[10px] text-dark-400 uppercase tracking-tighter">{s.label}</p>
+              <p className="text-[10px] text-dark-400 uppercase tracking-wider">{s.label}</p>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Goal Settings - REAL DATA SYNC */}
-      <div className="glass-card-static p-5 space-y-3 animate-slide-up delay-100">
+      {/* Error */}
+      {error && (
+        <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400 flex items-center justify-between animate-slide-up">
+          <span>{error}</span>
+          <button onClick={() => setError("")} className="text-red-400 hover:text-red-300 text-lg ml-2">✕</button>
+        </div>
+      )}
+
+      {/* Goal Settings */}
+      <div className="glass-card-static p-5 space-y-3 animate-slide-up" style={{ animationDelay: "100ms" }}>
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold text-white">Fitness Goal</p>
           {isUpdatingGoal && <span className="text-[10px] text-neon-blue animate-pulse font-medium">Updating...</span>}
@@ -151,10 +164,10 @@ export function ProfilePage() {
               key={goal.id}
               onClick={() => handleGoalChange(goal.id)}
               disabled={isUpdatingGoal}
-              className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border text-xs font-medium transition-all duration-300 ${
+              className={`flex flex-col items-center gap-1.5 py-3 rounded-2xl border text-xs font-medium transition-all duration-300 active:scale-95 ${
                 goalData?.goalType === goal.id
                   ? "border-neon-blue/50 bg-neon-blue/10 text-neon-blue shadow-[0_0_15px_rgba(0,212,255,0.15)]"
-                  : "border-white/8 bg-glass-white text-dark-200 hover:border-white/15"
+                  : "border-white/8 bg-glass-light text-dark-200 hover:border-white/15"
               }`}
             >
               <span className="text-xl">{goal.icon}</span>
@@ -164,36 +177,15 @@ export function ProfilePage() {
         </div>
         {goalData && (
           <div className="pt-2 flex justify-between items-center text-[10px] text-dark-400 border-t border-white/5 mt-2">
-            <span>Daily Target: <b className="text-white">{goalData.dailyTargets?.calories} kcal</b></span>
+            <span>Daily: <b className="text-white">{goalData.dailyTargets?.calories} kcal</b></span>
             <span>Protein: <b className="text-white">{goalData.dailyTargets?.protein}g</b></span>
           </div>
         )}
       </div>
 
-      {/* Premium Card */}
-      <div className="relative overflow-hidden rounded-3xl border border-neon-purple/30 p-5 animate-slide-up delay-200">
-        <div className="absolute inset-0 bg-gradient-to-br from-neon-purple/15 via-neon-blue/10 to-transparent" />
-        <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-neon-purple/10 blur-3xl" />
-
-        <div className="relative z-10 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-neon-purple to-neon-blue flex items-center justify-center flex-shrink-0">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-            </svg>
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-white">FitForge Premium</p>
-            <p className="text-xs text-dark-300">AI coaching, advanced analytics & more</p>
-          </div>
-        </div>
-        <button className="btn-gradient w-full mt-4 text-sm font-bold">
-          Upgrade to Premium
-        </button>
-      </div>
-
-      {/* Settings Sections */}
+      {/* Settings */}
       {settingsSections.map((section, idx) => (
-        <div key={section.title} className={`animate-slide-up delay-${(idx + 3) * 100}`}>
+        <div key={section.title} className="animate-slide-up" style={{ animationDelay: `${(idx + 2) * 100}ms` }}>
           <p className="section-label mb-3">{section.title}</p>
           <div className="glass-card-static overflow-hidden divide-y divide-white/5">
             {section.items.map((item) => (
@@ -244,14 +236,14 @@ export function ProfilePage() {
       {/* Sign Out */}
       <button
         onClick={handleLogout}
-        className="w-full py-4 rounded-2xl border border-red-500/20 bg-red-500/5 text-red-400 text-sm font-bold transition-all hover:bg-red-500/15 animate-slide-up"
+        className="w-full py-4 rounded-2xl border border-red-500/20 bg-red-500/5 text-red-400 text-sm font-bold transition-all hover:bg-red-500/15 active:scale-[0.98] animate-slide-up"
       >
         Sign Out
       </button>
 
       {/* App version */}
       <p className="text-center text-[10px] text-dark-500 pb-4">
-        FitForge v2.1.0 — 100% Database Driven ⚡
+        NutriSnap v2.1.0 ⚡
       </p>
     </div>
   );

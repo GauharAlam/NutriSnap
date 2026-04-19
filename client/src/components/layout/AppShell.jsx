@@ -61,7 +61,7 @@ const navItems = [
   },
 ];
 
-const noNavRoutes = ["/", "/onboarding", "/login"];
+const noNavRoutes = ["/", "/onboarding", "/login", "/landing", "/preview"];
 
 export function AppShell() {
   const location = useLocation();
@@ -69,7 +69,7 @@ export function AppShell() {
   const showBottomNav = !noNavRoutes.includes(location.pathname) && isAuthenticated;
 
   return (
-    <div className="min-h-screen bg-mesh text-dark-50">
+    <div className="min-h-screen min-h-[100dvh] bg-mesh text-dark-50">
       <main className={`mx-auto max-w-lg px-4 ${showBottomNav ? "pb-24" : ""}`}>
         <div className="page-enter">
           <Outlet />
