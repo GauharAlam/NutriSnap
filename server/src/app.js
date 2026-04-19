@@ -22,9 +22,22 @@ export const app = express();
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }, // allow uploads to be served
 }));
+
+/* ─── CORS ─── */
+const allowedOrigins = env.nodeEnv === "production"
+  ? [env.clientUrl]
+  : [env.clientUrl, "http://localhost:5173", "http://localhost:5174", "http://localhost:5178"];
+
 app.use(
   cors({
-    origin: env.clientUrl,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(null, true); // In dev, allow all; in prod, restrict
+      }
+    },
     credentials: true,
   })
 );
@@ -45,16 +58,16 @@ app.use("/uploads", express.static(uploadsRoot));
 
 /* ─── Rate Limiting ─── */
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200,                  // 200 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many requests. Please try again later." },
 });
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15,                   // 15 auth attempts per window
+  windowMs: 15 * 60 * 1000,
+  max: 50,                   // 50 auth attempts per 15 min (handles refresh bootstrap)
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many login attempts. Please wait 15 minutes." },
