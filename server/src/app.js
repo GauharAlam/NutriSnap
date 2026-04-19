@@ -1,7 +1,10 @@
 import cookieParser from "cookie-parser";
+import compression from "compression";
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import morgan from "morgan";
+import rateLimit from "express-rate-limit";
 import { env } from "./config/env.js";
 import { uploadsRoot } from "./config/paths.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -15,26 +18,76 @@ import workoutsRoutes from "./modules/workouts/workouts.routes.js";
 import workoutPlansRoutes from "./modules/workout-plans/workout-plans.routes.js";
 export const app = express();
 
+/* ─── Security ─── */
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // allow uploads to be served
+}));
 app.use(
   cors({
     origin: env.clientUrl,
     credentials: true,
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+/* ─── Performance ─── */
+app.use(compression());
+
+/* ─── Body Parsing ─── */
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
-app.use(morgan("dev"));
+
+/* ─── Logging ─── */
+app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
+
+/* ─── Static Files ─── */
 app.use("/uploads", express.static(uploadsRoot));
 
+/* ─── Rate Limiting ─── */
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200,                  // 200 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many requests. Please try again later." },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15,                   // 15 auth attempts per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many login attempts. Please wait 15 minutes." },
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,      // 1 minute
+  max: 5,                    // 5 AI calls per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "AI analysis rate limit exceeded. Please wait." },
+});
+
+app.use("/api", globalLimiter);
+
+/* ─── Health Check (verifies DB) ─── */
+import mongoose from "mongoose";
 app.get("/api/health", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "Server is healthy",
+  const dbState = mongoose.connection.readyState;
+  const dbStatus = dbState === 1 ? "connected" : dbState === 2 ? "connecting" : "disconnected";
+  const isHealthy = dbState === 1;
+
+  res.status(isHealthy ? 200 : 503).json({
+    success: isHealthy,
+    message: isHealthy ? "Server is healthy" : "Server is degraded",
+    uptime: process.uptime(),
+    database: dbStatus,
+    timestamp: new Date().toISOString(),
   });
 });
 
-app.use("/api/v1/auth", authRoutes);
+/* ─── API Routes ─── */
+app.use("/api/v1/auth", authLimiter, authRoutes);
 app.use("/api/v1/meals", mealsRoutes);
 app.use("/api/v1/goals", goalsRoutes);
 app.use("/api/v1/progress", progressRoutes);
@@ -42,5 +95,6 @@ app.use("/api/v1/assistant", assistantRoutes);
 app.use("/api/v1/workouts", workoutsRoutes);
 app.use("/api/v1/workout-plans", workoutPlansRoutes);
 
+/* ─── Error Handling ─── */
 app.use(notFoundHandler);
 app.use(errorHandler);
