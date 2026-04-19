@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../lib/api/client";
 
@@ -44,11 +44,13 @@ export function WorkoutPlansPage() {
     fetchPlans();
   }, []);
 
-  const filteredPlans = workoutPlans.filter((plan) => {
-    const matchesSearch = plan.title.toLowerCase().includes(search.toLowerCase());
-    const matchesFilter = activeFilter === "All" || plan.category === activeFilter;
-    return matchesSearch && matchesFilter;
-  });
+  const filteredPlans = useMemo(() => {
+    return workoutPlans.filter((plan) => {
+      const matchesSearch = plan.title.toLowerCase().includes(search.toLowerCase());
+      const matchesFilter = activeFilter === "All" || plan.category === activeFilter;
+      return matchesSearch && matchesFilter;
+    });
+  }, [workoutPlans, activeFilter, search]);
 
   return (
     <div className="pt-6 pb-4 space-y-5">

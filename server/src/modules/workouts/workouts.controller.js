@@ -1,4 +1,5 @@
 import { Workout } from "../../models/workout.model.js";
+import { paginate } from "../../utils/paginate.js";
 
 /**
  * Log a completed workout session
@@ -6,22 +7,10 @@ import { Workout } from "../../models/workout.model.js";
  */
 export async function logWorkout(req, res, next) {
   try {
-    const { title, category, durationMinutes, caloriesBurned, totalSets } = req.body;
-
-    if (!title || !category || !durationMinutes || !caloriesBurned) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing required workout fields",
-      });
-    }
-
+    // req.body is already validated & coerced by Zod middleware
     const workout = await Workout.create({
       userId: req.user.id,
-      title,
-      category,
-      durationMinutes,
-      caloriesBurned,
-      totalSets: totalSets || 0,
+      ...req.body,
     });
 
     res.status(201).json({
@@ -34,35 +23,43 @@ export async function logWorkout(req, res, next) {
 }
 
 /**
- * Get workout history for the user
- * GET /api/v1/workouts
+ * Get workout history for the user (paginated)
+ * GET /api/v1/workouts?page=1&limit=20
  */
 export async function getWorkoutHistory(req, res, next) {
   try {
-    const workouts = await Workout.find({ userId: req.user.id })
-      .sort({ completedAt: -1 })
-      .limit(30);
+    const { page, limit } = req.query;
 
-    // Calculate sum stats for the summary
-    const stats = workouts.reduce(
-      (acc, w) => {
-        acc.totalWorkouts += 1;
-        acc.totalDuration += w.durationMinutes;
-        acc.totalCalories += w.caloriesBurned;
-        acc.totalSets += w.totalSets;
-        return acc;
-      },
-      { totalWorkouts: 0, totalDuration: 0, totalCalories: 0, totalSets: 0 }
+    const { docs: workouts, pagination } = await paginate(
+      Workout,
+      { userId: req.user.id },
+      { page, limit, sort: { completedAt: -1 } }
     );
+
+    // Aggregate stats across ALL user workouts (not just current page)
+    const [stats] = await Workout.aggregate([
+      { $match: { userId: req.user._id || req.user.id } },
+      {
+        $group: {
+          _id: null,
+          totalWorkouts: { $sum: 1 },
+          totalDuration: { $sum: "$durationMinutes" },
+          totalCalories: { $sum: "$caloriesBurned" },
+          totalSets: { $sum: "$totalSets" },
+        },
+      },
+    ]);
 
     res.status(200).json({
       success: true,
       data: {
         workouts,
-        stats,
+        stats: stats || { totalWorkouts: 0, totalDuration: 0, totalCalories: 0, totalSets: 0 },
+        pagination,
       },
     });
   } catch (error) {
     next(error);
   }
 }
+

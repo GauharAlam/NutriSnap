@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { apiClient } from "../lib/api/client";
 
 /* ─── SVG Circle Progress ─── */
@@ -112,12 +112,12 @@ export function NutritionPage() {
 
   // Derived aggregates
   const totalTarget = goalTargets;
-  const totalConsumed = {
+  const totalConsumed = useMemo(() => ({
     calories: meals?.reduce((a, m) => a + (m.nutrition?.calories || 0), 0) || 0,
     protein: meals?.reduce((a, m) => a + (m.nutrition?.protein || 0), 0) || 0,
     carbs: meals?.reduce((a, m) => a + (m.nutrition?.carbs || 0), 0) || 0,
     fats: meals?.reduce((a, m) => a + (m.nutrition?.fats || 0), 0) || 0,
-  };
+  }), [meals]);
 
   async function handleFileSelect(e) {
     const file = e.target.files?.[0];

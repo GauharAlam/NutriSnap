@@ -61,7 +61,7 @@ const navItems = [
   },
 ];
 
-const noNavRoutes = ["/", "/onboarding", "/login", "/landing", "/preview"];
+const noNavRoutes = ["/", "/onboarding", "/login", "/landing", "/preview", "/coach"];
 
 export function AppShell() {
   const location = useLocation();
@@ -93,6 +93,17 @@ export function AppShell() {
             ))}
           </div>
         </nav>
+      )}
+
+      {/* Floating AI Coach Button */}
+      {showBottomNav && location.pathname !== "/coach" && (
+        <NavLink
+          to="/coach"
+          className="fixed bottom-[84px] right-4 w-12 h-12 rounded-full bg-gradient-to-br from-neon-blue to-neon-purple flex items-center justify-center text-xl shadow-[0_4px_15px_rgba(0,212,255,0.4)] z-50 hover:scale-105 active:scale-95 transition-transform"
+        >
+          <span className="animate-pulse">🤖</span>
+          <div className="absolute top-0 right-0 w-3 h-3 rounded-full bg-neon-green border-2 border-dark-900" />
+        </NavLink>
       )}
     </div>
   );

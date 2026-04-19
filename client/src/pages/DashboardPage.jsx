@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../features/auth/useAuth";
 import { apiClient } from "../lib/api/client";
 
 /* ─── SVG Circle Progress ─── */
-function CircleProgress({ value, max, size = 100, strokeWidth = 8, color = "#00d4ff", label }) {
+const CircleProgress = memo(function CircleProgress({ value, max, size = 100, strokeWidth = 8, color = "#00d4ff", label }) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const pct = max > 0 ? Math.min(Math.max(value / max, 0), 1) : 0;
@@ -31,10 +31,10 @@ function CircleProgress({ value, max, size = 100, strokeWidth = 8, color = "#00d
       </div>
     </div>
   );
-}
+});
 
 /* ─── Quick Stat Card ─── */
-function QuickStat({ icon, value, label, color }) {
+const QuickStat = memo(function QuickStat({ icon, value, label, color }) {
   return (
     <div className="glass-card-sm p-4 space-y-2">
       <div className="flex items-center justify-between">
@@ -45,7 +45,7 @@ function QuickStat({ icon, value, label, color }) {
       <p className="text-xs text-dark-300">{label}</p>
     </div>
   );
-}
+});
 
 export function DashboardPage() {
   const { user } = useAuth();

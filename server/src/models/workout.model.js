@@ -38,4 +38,7 @@ const workoutSchema = new mongoose.Schema(
   }
 );
 
+// Compound index for efficient user workout history queries
+workoutSchema.index({ userId: 1, completedAt: -1 });
+
 export const Workout = mongoose.model("Workout", workoutSchema);

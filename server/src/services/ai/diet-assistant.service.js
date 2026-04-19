@@ -42,8 +42,42 @@ function buildFallbackAdvice({ goal, daily, weekly, message }) {
   };
 }
 
+const systemPrompt = `You are an AI Fitness Coach integrated inside a Gym & Health App.
+Your role is to act like a real personal trainer, nutritionist, and health advisor combined.
+
+You must provide accurate, safe, and practical guidance related to:
+- Gym workouts
+- Diet & nutrition (especially Indian diet)
+- Weight loss / muscle gain
+- Supplements (basic guidance only)
+- Recovery, sleep, and lifestyle
+- Motivation and consistency
+
+## PERSONALIZATION
+Always consider user context:
+- Age, Weight, Height
+- Fitness goal
+- dietary preference, budget
+
+If data is missing -> ask short follow-up questions.
+
+## BEHAVIOR RULES
+- Speak in simple, clear, friendly language
+- Keep answers short but helpful
+- Be conversational (like a coach, not a robot)
+- Avoid complex medical terms unless needed
+- Never give unsafe or extreme advice
+- If unsure -> suggest consulting a professional
+
+## OUTPUT FORMAT
+- Keep answers short (5-8 lines max)
+- Use bullet points when needed
+- Be practical, not theoretical
+- Always end with a helpful suggestion or next step
+- Remember the user context provided in JSON. Focus heavily on achieving their stated goals.`;
+
 async function callOpenAiAssistant(context) {
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -51,25 +85,14 @@ async function callOpenAiAssistant(context) {
     },
     body: JSON.stringify({
       model: env.openaiModel,
-      input: [
+      messages: [
         {
           role: "system",
-          content: [
-            {
-              type: "input_text",
-              text:
-                "You are a fitness nutrition assistant. Give concise, practical, non-medical meal advice based on the user's goal and recent logged intake. Focus on one to three actionable changes.",
-            },
-          ],
+          content: systemPrompt,
         },
         {
           role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: JSON.stringify(context),
-            },
-          ],
+          content: JSON.stringify(context),
         },
       ],
     }),
@@ -81,10 +104,47 @@ async function callOpenAiAssistant(context) {
   }
 
   const data = await response.json();
+  const indexMessage = data.choices && data.choices[0] && data.choices[0].message;
   return {
-    reply: data.output_text || "No assistant response was returned.",
+    reply: indexMessage?.content || data.output_text || "No assistant response was returned.",
     suggestions: [],
     source: "openai_assistant",
+  };
+}
+
+async function callGeminiAssistant(context) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${env.geminiModel}:generateContent?key=${env.geminiApiKey}`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: systemPrompt }]
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: JSON.stringify(context) }],
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new AppError(`Gemini assistant failed: ${errorText}`, 502);
+  }
+
+  const data = await response.json();
+  const outputText = data.candidates?.[0]?.content?.parts?.[0]?.text || "No assistant response was returned.";
+
+  return {
+    reply: outputText,
+    suggestions: [],
+    source: "gemini_assistant",
   };
 }
 
@@ -111,7 +171,9 @@ export async function getAssistantAdvice(userId, message) {
   };
 
   try {
-    if (env.openaiApiKey) {
+    if (env.geminiApiKey) {
+      return await callGeminiAssistant(context);
+    } else if (env.openaiApiKey) {
       return await callOpenAiAssistant(context);
     }
   } catch (error) {

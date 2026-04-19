@@ -6,9 +6,12 @@ import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import { env } from "./config/env.js";
+import { logger, morganStream } from "./config/logger.js";
 import { uploadsRoot } from "./config/paths.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { notFoundHandler } from "./middleware/not-found.js";
+import { sanitizeInputs } from "./middleware/sanitize.js";
+import { requestTimer } from "./middleware/request-timer.js";
 import assistantRoutes from "./modules/assistant/assistant.routes.js";
 import authRoutes from "./modules/auth/auth.routes.js";
 import goalsRoutes from "./modules/goals/goals.routes.js";
@@ -51,7 +54,13 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
 
 /* ─── Logging ─── */
-app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
+app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev", { stream: morganStream }));
+
+/* ─── Request Timer (slow query logging) ─── */
+app.use(requestTimer);
+
+/* ─── NoSQL Injection Prevention ─── */
+app.use(sanitizeInputs);
 
 /* ─── Static Files ─── */
 app.use("/uploads", express.static(uploadsRoot));
