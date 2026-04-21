@@ -58,11 +58,10 @@ export async function registerForPushNotificationsAsync() {
     
     try {
       if (!projectId) {
-        // Fallback for development without an EAS project ID
-        token = (await Notifications.getExpoPushTokenAsync()).data;
-      } else {
-        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+        console.warn('No projectId found. Push notifications require a projectId in app.json -> extra.eas.projectId');
+        return null;
       }
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
     } catch (e) {
       console.log('Error getting push token', e);
       token = null;
