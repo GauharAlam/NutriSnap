@@ -1,5 +1,6 @@
 import path from "path";
 import { env } from "../../config/env.js";
+import { cloudinary } from "../../config/cloudinary.js";
 import { analyzeMealImageWithAi } from "../../services/ai/meal-analysis.service.js";
 import { estimateNutritionFromItems } from "../../services/nutrition/meal-estimator.service.js";
 import { asyncHandler } from "../../utils/async-handler.js";
@@ -18,7 +19,18 @@ export const uploadMealImage = asyncHandler(async (req, res) => {
   }
 
   const imagePath = `/uploads/meals/${path.basename(req.file.path)}`;
-  const imageUrl = `${env.serverUrl}${imagePath}`;
+  let imageUrl = `${env.serverUrl}${imagePath}`;
+
+  if (env.cloudinaryCloudName && env.cloudinaryApiKey && env.cloudinaryApiSecret) {
+    try {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "nutrisnap/meals",
+      });
+      imageUrl = result.secure_url;
+    } catch (err) {
+      console.error("Cloudinary upload failed:", err);
+    }
+  }
 
   res.status(201).json({
     success: true,

@@ -54,10 +54,18 @@ function sanitizeAiResult(result = {}, fallbackMealType = "snack") {
         .filter((item) => item.name)
     : [];
 
+  const safeNutrition = {
+    calories: Number(result.nutritionEstimate?.calories) || 0,
+    protein: Number(result.nutritionEstimate?.protein) || 0,
+    carbs: Number(result.nutritionEstimate?.carbs) || 0,
+    fats: Number(result.nutritionEstimate?.fats) || 0,
+  };
+
   return {
     title: typeof result.title === "string" && result.title.trim() ? result.title.trim() : "AI meal suggestion",
     mealType: safeMealType,
     foodItems: safeFoodItems,
+    nutritionEstimate: safeNutrition,
     notes:
       typeof result.notes === "string" && result.notes.trim()
         ? result.notes.trim()
@@ -89,10 +97,11 @@ async function callOpenAiMealAnalysis({ imagePath, mealTypeHint, originalName })
 
   const prompt = [
     "Analyze this food image for a fitness and nutrition tracker.",
-    "Return JSON only with these keys: title, mealType, foodItems, notes, confidence.",
+    "Return JSON only with these keys: title, mealType, foodItems, notes, confidence, nutritionEstimate.",
     'mealType must be one of "breakfast", "lunch", "dinner", "snack".',
     "foodItems must be an array of objects with keys name and portionMultiplier.",
     "portionMultiplier should be a number where 1 is a normal serving, 0.5 is half, 1.5 is larger, etc.",
+    "nutritionEstimate must be an object with keys calories, protein, carbs, fats as numbers.",
     "Keep 2 to 5 food items maximum.",
     "Use the image first, and use filename or meal type hint only as a weak secondary signal.",
     `Filename hint: ${originalName || "unknown"}.`,
@@ -140,10 +149,11 @@ async function callGeminiMealAnalysis({ imagePath, mealTypeHint, originalName })
 
   const prompt = [
     "Analyze this food image for a fitness and nutrition tracker.",
-    "Return JSON only with these keys: title, mealType, foodItems, notes, confidence.",
+    "Return JSON only with these keys: title, mealType, foodItems, notes, confidence, nutritionEstimate.",
     'mealType must be one of "breakfast", "lunch", "dinner", "snack".',
     "foodItems must be an array of objects with keys name and portionMultiplier.",
     "portionMultiplier should be a number where 1 is a normal serving, 0.5 is half, 1.5 is larger, etc.",
+    "nutritionEstimate must be an object with keys calories, protein, carbs, fats as numbers.",
     "Keep 2 to 5 food items maximum.",
     "Use the image first, and use filename or meal type hint only as a weak secondary signal.",
     `Filename hint: ${originalName || "unknown"}.`,
@@ -192,6 +202,7 @@ async function callGeminiMealAnalysis({ imagePath, mealTypeHint, originalName })
 function buildFallbackAnalysis({ mealTypeHint, originalName }) {
   const inferredFoodItems = inferFoodsFromFilename(originalName);
   const fallbackMealType = mealTypeHint || "snack";
+  const localNutrition = estimateNutritionFromItems(inferredFoodItems).totals;
 
   return {
     title:
@@ -204,6 +215,7 @@ function buildFallbackAnalysis({ mealTypeHint, originalName }) {
             : "Mixed snack plate",
     mealType: fallbackMealType,
     foodItems: inferredFoodItems,
+    nutritionEstimate: localNutrition,
     notes:
       "AI fallback used because no live model analysis was available. Please review the suggested foods and nutrients before saving.",
     confidence: "low",
@@ -231,7 +243,9 @@ export async function analyzeMealImageWithAi(payload) {
     source = "fallback_after_error";
   }
 
-  const nutritionEstimate = estimateNutritionFromItems(analysis.foodItems);
+  const nutritionEstimate = analysis.nutritionEstimate && analysis.nutritionEstimate.calories > 0 
+    ? analysis.nutritionEstimate 
+    : estimateNutritionFromItems(analysis.foodItems).totals;
 
   return {
     analysis,
