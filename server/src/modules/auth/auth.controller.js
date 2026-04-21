@@ -20,7 +20,7 @@ export const register = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: "User registered",
-    data: responseData,
+    data: { ...responseData, refreshToken },
   });
 });
 
@@ -33,7 +33,7 @@ export const login = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Login successful",
-    data: responseData,
+    data: { ...responseData, refreshToken },
   });
 });
 
@@ -46,7 +46,7 @@ export const refresh = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Session refreshed",
-    data: responseData,
+    data: { ...responseData, refreshToken },
   });
 });
 
