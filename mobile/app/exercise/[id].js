@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { apiClient } from '../../lib/api';
 import { Colors, Fonts, Radius } from '../../lib/colors';
 import GlassCard from '../../components/GlassCard';
+import RestTimer from '../../components/RestTimer';
 
 const categoryIcons = {
   'Fat Loss': '🔥', 'Muscle Gain': '💪', 'Strength': '🏋️',
@@ -28,6 +29,41 @@ export default function ExerciseDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [activeDay, setActiveDay] = useState(0);
   const [isLogging, setIsLogging] = useState(false);
+
+  // Active Workout State
+  const [isActive, setIsActive] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [checkedSets, setCheckedSets] = useState({}); // { 'exId_setIndex': boolean }
+  const [restTimerVisible, setRestTimerVisible] = useState(false);
+  const [currentRestDuration, setCurrentRestDuration] = useState(60);
+
+  // Stopwatch
+  useEffect(() => {
+    let interval;
+    if (isActive) {
+      interval = setInterval(() => setElapsedSeconds(p => p + 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isActive]);
+
+  const toggleSet = (exIndex, setIndex, restSecs) => {
+    const key = `${exIndex}_${setIndex}`;
+    setCheckedSets(prev => {
+      const isChecking = !prev[key];
+      if (isChecking) {
+        // Trigger rest timer
+        setCurrentRestDuration(restSecs || 60);
+        setRestTimerVisible(true);
+      }
+      return { ...prev, [key]: isChecking };
+    });
+  };
+
+  const formatElapsed = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     (async () => {
@@ -51,7 +87,7 @@ export default function ExerciseDetailScreen() {
       await apiClient.post('/workouts', {
         title: plan.title,
         category: plan.category,
-        durationMinutes: parseInt(plan.duration) || 30,
+        durationMinutes: isActive ? Math.max(1, Math.floor(elapsedSeconds / 60)) : parseInt(plan.duration) || 30,
         caloriesBurned: parseInt(plan.calories) || 200,
         totalSets: exercises.reduce((a, e) => a + (e.sets || 3), 0),
         exercises: exercises.map((e) => ({
@@ -103,10 +139,25 @@ export default function ExerciseDetailScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Back Button */}
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.textSec} />
-        </Pressable>
+        {/* Active Header */}
+        {isActive && (
+          <View style={styles.activeHeader}>
+            <View>
+              <Text style={styles.activeStatusText}>⏱️ Workout in progress</Text>
+              <Text style={styles.elapsedTime}>{formatElapsed(elapsedSeconds)}</Text>
+            </View>
+            <Pressable onPress={handleLogWorkout} disabled={isLogging} style={styles.finishBtn}>
+              {isLogging ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.finishBtnText}>Finish</Text>}
+            </Pressable>
+          </View>
+        )}
+
+        {/* Back Button (only show if not active) */}
+        {!isActive && (
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={Colors.textSec} />
+          </Pressable>
+        )}
 
         {/* Hero */}
         <View style={styles.heroCard}>
@@ -157,6 +208,20 @@ export default function ExerciseDetailScreen() {
           </ScrollView>
         )}
 
+        {/* Action Button */}
+        {!isActive && (
+          <Pressable onPress={() => setIsActive(true)} style={({ pressed }) => [pressed && { opacity: 0.85 }]}>
+            <LinearGradient
+              colors={Colors.gradientBlue}
+              style={styles.logBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Text style={styles.logBtnText}>⚡ Start Workout</Text>
+            </LinearGradient>
+          </Pressable>
+        )}
+
         {/* Exercises */}
         <Text style={styles.sectionLabel}>
           {exercises.length} Exercise{exercises.length !== 1 ? 's' : ''}
@@ -195,32 +260,59 @@ export default function ExerciseDetailScreen() {
               {exercise.notes && (
                 <Text style={styles.exerciseNotes}>{exercise.notes}</Text>
               )}
+
+              {/* Set Checkboxes for Active Mode */}
+              {isActive && (
+                <View style={styles.setsContainer}>
+                  {Array.from({ length: exercise.sets || 3 }).map((_, setIdx) => {
+                    const isChecked = checkedSets[`${i}_${setIdx}`];
+                    const restVal = exercise.rest ? parseInt(String(exercise.rest).replace(/\D/g, '')) || 60 : 60;
+                    
+                    return (
+                      <Pressable 
+                        key={setIdx} 
+                        style={[styles.setRow, isChecked && styles.setRowChecked]}
+                        onPress={() => toggleSet(i, setIdx, restVal)}
+                      >
+                        <View style={[styles.setBox, isChecked && styles.setBoxChecked]}>
+                          {isChecked && <Ionicons name="checkmark" size={14} color="#000" />}
+                        </View>
+                        <Text style={[styles.setText, isChecked && styles.setTextChecked]}>
+                          Set {setIdx + 1}
+                        </Text>
+                        <Text style={styles.setRepsText}>{exercise.reps || 12} reps</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           </GlassCard>
         ))}
 
-        {/* Log Workout Button */}
-        <Pressable
-          onPress={handleLogWorkout}
-          disabled={isLogging}
-          style={({ pressed }) => [pressed && { opacity: 0.85 }]}
-        >
-          <LinearGradient
-            colors={isLogging ? ['#555', '#444'] : Colors.gradientBlue}
-            style={styles.logBtn}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-          >
-            {isLogging ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.logBtnText}>✅ Complete & Log Workout</Text>
-            )}
-          </LinearGradient>
-        </Pressable>
+        {/* Action Button at bottom for finish */}
+        {isActive && (
+          <Pressable onPress={handleLogWorkout} disabled={isLogging} style={({ pressed }) => [pressed && { opacity: 0.85 }]}>
+            <LinearGradient
+              colors={isLogging ? ['#555', '#444'] : Colors.gradientBlue}
+              style={styles.logBtn}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              {isLogging ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.logBtnText}>✅ Finish & Save</Text>}
+            </LinearGradient>
+          </Pressable>
+        )}
 
         <View style={{ height: 30 }} />
       </ScrollView>
+
+      {/* Rest Timer Modal */}
+      <RestTimer 
+        visible={restTimerVisible} 
+        duration={currentRestDuration} 
+        onClose={() => setRestTimerVisible(false)} 
+      />
     </SafeAreaView>
   );
 }
@@ -282,6 +374,26 @@ const styles = StyleSheet.create({
   exerciseNotes: { fontSize: 11, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' },
 
   emptyTitle: { fontSize: 16, color: Colors.text, ...Fonts.semibold },
+
+  // Active Mode
+  activeHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: Colors.bgInput, padding: 16, borderRadius: Radius.lg,
+    borderWidth: 1, borderColor: Colors.border, marginBottom: 8,
+  },
+  activeStatusText: { fontSize: 11, color: Colors.textSec, ...Fonts.semibold, textTransform: 'uppercase' },
+  elapsedTime: { fontSize: 28, color: Colors.text, ...Fonts.display, marginTop: 4 },
+  finishBtn: { backgroundColor: Colors.neonBlue, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.full },
+  finishBtnText: { color: '#000', fontSize: 14, ...Fonts.bold },
+
+  setsContainer: { marginTop: 12, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 12, gap: 8, width: '100%' },
+  setRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.02)', padding: 10, borderRadius: Radius.sm },
+  setRowChecked: { backgroundColor: 'rgba(0,212,255,0.08)' },
+  setBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, marginRight: 12, alignItems: 'center', justifyContent: 'center' },
+  setBoxChecked: { backgroundColor: Colors.neonBlue, borderColor: Colors.neonBlue },
+  setText: { fontSize: 13, color: Colors.text, ...Fonts.medium, flex: 1 },
+  setTextChecked: { color: Colors.textSec, textDecorationLine: 'line-through' },
+  setRepsText: { fontSize: 12, color: Colors.textSec },
 
   // Log button
   logBtn: { borderRadius: Radius.full, paddingVertical: 18, alignItems: 'center', marginTop: 8 },

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Dimensions, Pressable, Image, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { apiClient } from '../../lib/api';
 import { Colors, Fonts, Radius } from '../../lib/colors';
 import GlassCard from '../../components/GlassCard';
@@ -48,16 +49,21 @@ export default function ProgressScreen() {
   const [workoutStats, setWorkoutStats] = useState({
     totalWorkouts: 0, totalDuration: 0, totalCalories: 0, totalSets: 0,
   });
+  const [photos, setPhotos] = useState([]);
+  const [activeTab, setActiveTab] = useState('Analytics');
   const [loading, setLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [progressRes, workoutRes] = await Promise.all([
+      const [progressRes, workoutRes, photosRes] = await Promise.all([
         apiClient.get('/progress/weekly'),
         apiClient.get('/workouts'),
+        apiClient.get('/progress/photos'),
       ]);
       if (progressRes.data?.success) setWeeklyData(progressRes.data.data);
       if (workoutRes.data?.success) setWorkoutStats(workoutRes.data.data.stats);
+      if (photosRes.data?.success) setPhotos(photosRes.data.data);
     } catch (err) {
       console.log('Progress fetch error:', err.message);
     } finally {
@@ -66,6 +72,41 @@ export default function ProgressScreen() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  async function handleAddPhoto() {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', 'Gallery access is required.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', {
+        uri: result.assets[0].uri,
+        type: 'image/jpeg',
+        name: 'progress_photo.jpg',
+      });
+
+      await apiClient.post('/progress/photos', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await fetchData(); // Refresh photos
+    } catch (e) {
+      console.log('Upload error', e);
+      Alert.alert('Error', 'Failed to upload photo.');
+    } finally {
+      setIsUploading(false);
+    }
+  }
 
   if (loading || !weeklyData) {
     return (
@@ -103,11 +144,22 @@ export default function ProgressScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <Text style={styles.sectionLabel}>Analytics</Text>
-        <Text style={styles.sectionTitle}>Your Progress</Text>
+        {/* Header Tabs */}
+        <View style={styles.tabHeader}>
+          <Text style={styles.sectionTitle}>Your Progress</Text>
+          <View style={styles.tabRow}>
+            <Pressable onPress={() => setActiveTab('Analytics')} style={[styles.tabBtn, activeTab === 'Analytics' && styles.tabBtnActive]}>
+              <Text style={[styles.tabText, activeTab === 'Analytics' && styles.tabTextActive]}>Analytics</Text>
+            </Pressable>
+            <Pressable onPress={() => setActiveTab('Gallery')} style={[styles.tabBtn, activeTab === 'Gallery' && styles.tabBtnActive]}>
+              <Text style={[styles.tabText, activeTab === 'Gallery' && styles.tabTextActive]}>Gallery</Text>
+            </Pressable>
+          </View>
+        </View>
 
-        {/* Week Pulse Hero */}
+        {activeTab === 'Analytics' ? (
+          <>
+            {/* Week Pulse Hero */}
         <View style={styles.pulseCard}>
           <LinearGradient
             colors={['rgba(249,115,22,0.15)', 'rgba(236,72,153,0.08)', 'transparent']}
@@ -183,6 +235,36 @@ export default function ProgressScreen() {
             </GlassCard>
           ))}
         </View>
+          </>
+        ) : (
+          /* Gallery Tab */
+          <View style={styles.galleryContainer}>
+            <Pressable onPress={handleAddPhoto} disabled={isUploading} style={styles.addPhotoBtn}>
+              <LinearGradient colors={Colors.gradientBlue} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.addPhotoGrad}>
+                {isUploading ? <ActivityIndicator color="#fff" /> : <Text style={styles.addPhotoTxt}>📸 Upload Progress Photo</Text>}
+              </LinearGradient>
+            </Pressable>
+
+            {photos.length === 0 ? (
+              <View style={styles.emptyGallery}>
+                <Text style={{ fontSize: 40 }}>🤳</Text>
+                <Text style={styles.emptyGalTxt}>No photos yet. Start tracking your visual progress!</Text>
+              </View>
+            ) : (
+              <View style={styles.photoGrid}>
+                {photos.map((p) => (
+                  <View key={p._id} style={styles.photoCard}>
+                    <Image source={{ uri: p.imageUrl }} style={styles.photoImg} />
+                    <View style={styles.photoMeta}>
+                      <Text style={styles.photoDate}>{new Date(p.date).toLocaleDateString()}</Text>
+                      {p.weight && <Text style={styles.photoWeight}>{p.weight} kg</Text>}
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={{ height: 20 }} />
       </ScrollView>
@@ -199,6 +281,27 @@ const styles = StyleSheet.create({
 
   sectionLabel: { fontSize: 10, color: Colors.textSec, ...Fonts.semibold, letterSpacing: 1.5, textTransform: 'uppercase' },
   sectionTitle: { fontSize: 22, color: Colors.text, ...Fonts.display, marginTop: 2, marginBottom: 4 },
+
+  tabHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  tabRow: { flexDirection: 'row', backgroundColor: Colors.bgInput, borderRadius: Radius.full, padding: 4 },
+  tabBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.full },
+  tabBtnActive: { backgroundColor: Colors.bgCardSolid },
+  tabText: { color: Colors.textSec, ...Fonts.medium, fontSize: 12 },
+  tabTextActive: { color: Colors.neonBlue, ...Fonts.semibold },
+
+  // Gallery
+  galleryContainer: { marginTop: 8 },
+  addPhotoBtn: { marginBottom: 16 },
+  addPhotoGrad: { paddingVertical: 14, borderRadius: Radius.full, alignItems: 'center' },
+  addPhotoTxt: { color: '#fff', fontSize: 14, ...Fonts.bold },
+  emptyGallery: { alignItems: 'center', paddingVertical: 40 },
+  emptyGalTxt: { color: Colors.textSec, marginTop: 12, fontSize: 13 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  photoCard: { width: '48%', backgroundColor: Colors.bgCardSolid, borderRadius: Radius.lg, overflow: 'hidden' },
+  photoImg: { width: '100%', height: 180, resizeMode: 'cover' },
+  photoMeta: { padding: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  photoDate: { color: Colors.textSec, fontSize: 10, ...Fonts.medium },
+  photoWeight: { color: Colors.neonBlue, fontSize: 11, ...Fonts.bold },
 
   // Pulse
   pulseCard: {

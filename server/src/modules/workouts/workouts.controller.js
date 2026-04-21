@@ -1,5 +1,6 @@
 import { Workout } from "../../models/workout.model.js";
 import { paginate } from "../../utils/paginate.js";
+import { updateActivityStreak } from "../../utils/streak-updater.js";
 
 /**
  * Log a completed workout session
@@ -12,6 +13,9 @@ export async function logWorkout(req, res, next) {
       userId: req.user.id,
       ...req.body,
     });
+
+    // Gamification Streak update
+    await updateActivityStreak(req.user.id);
 
     res.status(201).json({
       success: true,

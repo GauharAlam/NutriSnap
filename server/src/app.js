@@ -19,6 +19,7 @@ import mealsRoutes from "./modules/meals/meals.routes.js";
 import progressRoutes from "./modules/progress/progress.routes.js";
 import workoutsRoutes from "./modules/workouts/workouts.routes.js";
 import workoutPlansRoutes from "./modules/workout-plans/workout-plans.routes.js";
+import waterRoutes from "./modules/water/water.routes.js";
 export const app = express();
 
 /* ─── Security ─── */
@@ -116,6 +117,7 @@ app.use("/api/v1/progress", progressRoutes);
 app.use("/api/v1/assistant", assistantRoutes);
 app.use("/api/v1/workouts", workoutsRoutes);
 app.use("/api/v1/workout-plans", workoutPlansRoutes);
+app.use("/api/v1/water", waterRoutes);
 
 /* ─── Error Handling ─── */
 app.use(notFoundHandler);

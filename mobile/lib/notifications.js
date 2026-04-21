@@ -3,25 +3,42 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+const isExpoGo = Constants.appOwnership === 'expo';
+
 // How notifications should be handled when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+if (!isExpoGo) {
+  try {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  } catch (e) {
+    console.log("Expo Notifications handler could not be set", e);
+  }
+}
 
 export async function registerForPushNotificationsAsync() {
   let token;
 
+  if (isExpoGo) {
+    console.log('Skipping push tokens: Expo Go does not support Push Notifications in SDK 53+.');
+    return null;
+  }
+
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#00d4ff',
-    });
+    try {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#00d4ff',
+      });
+    } catch (e) {
+      console.log('Error setting notification channel', e);
+    }
   }
 
   if (Device.isDevice) {

@@ -13,7 +13,7 @@ import GlassCard from '../../components/GlassCard';
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [greeting, setGreeting] = useState('Good morning');
   const [dailyProgress, setDailyProgress] = useState(null);
   const [workoutData, setWorkoutData] = useState(null);
@@ -32,12 +32,18 @@ export default function DashboardScreen() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [progressRes, workoutRes] = await Promise.all([
+      const [progressRes, workoutRes, waterRes] = await Promise.all([
         apiClient.get('/progress/daily'),
         apiClient.get('/workouts'),
+        apiClient.get('/water/today'),
       ]);
       if (progressRes.data.success) setDailyProgress(progressRes.data.data);
       if (workoutRes.data.success) setWorkoutData(workoutRes.data.data);
+      if (waterRes.data.success) {
+        // Convert ml to glasses (250ml per glass)
+        setWaterCount(Math.min(8, Math.floor((waterRes.data.data.amountMl || 0) / 250)));
+      }
+      if (refreshUser) await refreshUser();
     } catch (err) {
       console.log('Dashboard fetch error:', err.message);
     } finally {
@@ -78,6 +84,12 @@ export default function DashboardScreen() {
             <Text style={styles.greetingText}>
               {greeting}, <Text style={{ color: Colors.neonBlue }}>{firstName}</Text>
             </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+              <Text style={{ fontSize: 14 }}>🔥</Text>
+              <Text style={{ fontSize: 13, color: Colors.neonOrange, fontWeight: '700', marginLeft: 4 }}>
+                {user?.currentStreak || 0} Day Streak
+              </Text>
+            </View>
           </View>
           <Pressable onPress={() => router.push('/(tabs)/profile')}>
             <LinearGradient
@@ -196,7 +208,19 @@ export default function DashboardScreen() {
               {Array.from({ length: 8 }).map((_, i) => (
                 <Pressable
                   key={i}
-                  onPress={() => setWaterCount(i < waterCount ? i : i + 1)}
+                  onPress={async () => {
+                    if (i < waterCount) return; // Only allow adding
+                    const newCount = i + 1;
+                    setWaterCount(newCount);
+                    try {
+                      // We only log the delta to the backend (+250ml per tap)
+                      await apiClient.post('/water', {
+                        amount: 250 * (newCount - waterCount)
+                      });
+                    } catch (e) {
+                      console.log('Failed to log water', e);
+                    }
+                  }}
                   style={[
                     styles.waterBlock,
                     i < waterCount && styles.waterBlockFilled,

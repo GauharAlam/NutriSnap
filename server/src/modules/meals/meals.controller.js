@@ -10,6 +10,7 @@ import {
   listMealsForDate,
   updateMeal,
 } from "./meals.service.js";
+import { updateActivityStreak } from "../../utils/streak-updater.js";
 
 export const uploadMealImage = asyncHandler(async (req, res) => {
   if (!req.file) {
@@ -57,6 +58,7 @@ export const estimateMealNutrition = asyncHandler(async (req, res) => {
 
 export const createMealEntry = asyncHandler(async (req, res) => {
   const meal = await createMeal(req.user.id, req.body);
+  await updateActivityStreak(req.user.id);
 
   res.status(201).json({
     success: true,

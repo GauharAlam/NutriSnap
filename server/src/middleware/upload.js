@@ -7,6 +7,9 @@ import { uploadsRoot } from "../config/paths.js";
 const mealsUploadDir = path.join(uploadsRoot, "meals");
 fs.mkdirSync(mealsUploadDir, { recursive: true });
 
+const progressUploadDir = path.join(uploadsRoot, "progress");
+fs.mkdirSync(progressUploadDir, { recursive: true });
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, mealsUploadDir);
@@ -14,6 +17,17 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const extension = path.extname(file.originalname || "").toLowerCase();
     const safeName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extension}`;
+    cb(null, safeName);
+  },
+});
+
+const progressStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, progressUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const extension = path.extname(file.originalname || "").toLowerCase();
+    const safeName = `${Date.now()}-progress-${Math.round(Math.random() * 1e9)}${extension}`;
     cb(null, safeName);
   },
 });
@@ -31,5 +45,13 @@ export const mealImageUpload = multer({
   fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024,
+  },
+});
+
+export const progressPhotoUpload = multer({
+  storage: progressStorage,
+  fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit for progress photos
   },
 });

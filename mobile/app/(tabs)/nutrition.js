@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, Pressable, StyleSheet, Modal,
   Image, ActivityIndicator, Alert,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
@@ -45,6 +46,7 @@ const macroStyles = StyleSheet.create({
 });
 
 export default function NutritionScreen() {
+  const router = useRouter();
   const [meals, setMeals] = useState([]);
   const [goalTargets, setGoalTargets] = useState({ calories: 2400, protein: 170, carbs: 250, fats: 75 });
   const [caloriesBurned, setCaloriesBurned] = useState(0);
@@ -87,19 +89,32 @@ export default function NutritionScreen() {
     fats: meals.reduce((a, m) => a + (m.nutrition?.fats || 0), 0),
   }), [meals]);
 
-  async function handleImagePick() {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
+  async function handleImagePick(source) {
+    let perm;
+    if (source === 'camera') {
+      perm = await ImagePicker.requestCameraPermissionsAsync();
+    } else {
+      perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    }
+    
     if (!perm.granted) {
-      Alert.alert('Permission needed', 'Camera permission is required to scan food.');
+      Alert.alert('Permission needed', `Access to ${source} is required to scan food.`);
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
+    const options = {
       mediaTypes: ['images'],
       quality: 0.8,
       allowsEditing: true,
       aspect: [4, 3],
-    });
+    };
+
+    let result;
+    if (source === 'camera') {
+      result = await ImagePicker.launchCameraAsync(options);
+    } else {
+      result = await ImagePicker.launchImageLibraryAsync(options);
+    }
 
     if (result.canceled) return;
 
@@ -246,18 +261,53 @@ export default function NutritionScreen() {
           </View>
         </GlassCard>
 
-        {/* Meals */}
-        <View style={styles.mealHeader}>
-          <Text style={styles.sectionLabel}>Today's Meals</Text>
-          <Pressable
-            onPress={handleImagePick}
-            style={styles.aiLogBtn}
+        {/* Action Buttons Hub */}
+        <View style={styles.actionHub}>
+          <Pressable 
+            onPress={() => router.push('/barcode-scanner')} 
+            style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.8 }]}
           >
-            <Text style={styles.aiLogText}>
-              {isUploading ? 'Uploading...' : '📸 AI Log'}
-            </Text>
+            <LinearGradient colors={['rgba(255,255,255,0.1)', 'rgba(255,255,255,0.02)']} style={styles.actionBtnGrad}>
+              <Text style={{ fontSize: 24, marginBottom: 8 }}>🧾</Text>
+              <Text style={styles.actionBtnTxt}>Scan</Text>
+              <Text style={styles.actionBtnTxt}>Barcode</Text>
+            </LinearGradient>
+          </Pressable>
+
+          <Pressable 
+            onPress={() => handleImagePick('camera')} 
+            style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.8 }]}
+          >
+            <LinearGradient colors={Colors.gradientBlue} style={styles.actionBtnGrad} start={{x:0, y:0}} end={{x:1, y:1}}>
+              <Text style={{ fontSize: 24, marginBottom: 8 }}>📸</Text>
+              <Text style={styles.actionBtnTxt}>AI Camera</Text>
+              <Text style={[styles.actionBtnTxt, { color: 'rgba(255,255,255,0.7)', fontSize: 10 }]}>Take photo</Text>
+            </LinearGradient>
+          </Pressable>
+
+          <Pressable 
+            onPress={() => handleImagePick('gallery')} 
+            style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.8 }]}
+          >
+            <LinearGradient colors={Colors.gradientPink} style={styles.actionBtnGrad} start={{x:0, y:0}} end={{x:1, y:1}}>
+              <Text style={{ fontSize: 24, marginBottom: 8 }}>🖼️</Text>
+              <Text style={styles.actionBtnTxt}>AI Gallery</Text>
+              <Text style={[styles.actionBtnTxt, { color: 'rgba(255,255,255,0.7)', fontSize: 10 }]}>Upload photo</Text>
+            </LinearGradient>
           </Pressable>
         </View>
+
+        {/* Meals */}
+        <View style={[styles.mealHeader, { marginTop: 16 }]}>
+          <Text style={styles.sectionLabel}>Today's Meals</Text>
+        </View>
+        
+        {isUploading && (
+          <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+             <ActivityIndicator size="small" color={Colors.neonBlue} />
+             <Text style={{ color: Colors.neonBlue, marginTop: 8, fontSize: 12 }}>Processing image...</Text>
+          </View>
+        )}
 
         {meals.length === 0 ? (
           <GlassCard style={styles.emptyMeals}>
@@ -266,9 +316,13 @@ export default function NutritionScreen() {
         ) : (
           meals.map((meal) => (
             <GlassCard key={meal._id} variant="sm" style={styles.mealCard}>
-              <View style={styles.mealIconBox}>
-                <Text style={{ fontSize: 24 }}>{mealIcon(meal.mealType)}</Text>
-              </View>
+              {meal.imageUrl ? (
+                <Image source={{ uri: meal.imageUrl }} style={styles.mealIconBox} />
+              ) : (
+                <View style={styles.mealIconBox}>
+                  <Text style={{ fontSize: 24 }}>{mealIcon(meal.mealType)}</Text>
+                </View>
+              )}
               <View style={{ flex: 1 }}>
                 <View style={styles.mealTitleRow}>
                   <Text style={styles.mealTitle} numberOfLines={1}>{meal.title}</Text>
@@ -398,13 +452,18 @@ const styles = StyleSheet.create({
   },
   waterBlockFilled: { backgroundColor: Colors.neonBlue },
 
-  // Meals
-  mealHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  aiLogBtn: {
-    backgroundColor: Colors.neonBlue,
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.full,
+  // Action Hub
+  actionHub: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  actionBtn: { flex: 1, borderRadius: Radius.lg, overflow: 'hidden' },
+  actionBtnGrad: { 
+    paddingVertical: 16, paddingHorizontal: 4, 
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: Radius.lg 
   },
-  aiLogText: { fontSize: 12, color: Colors.textDark, ...Fonts.semibold },
+  actionBtnTxt: { color: '#fff', fontSize: 12, ...Fonts.semibold, textAlign: 'center' },
+
+  // Meals
+  mealHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   emptyMeals: { alignItems: 'center', paddingVertical: 24 },
   emptyText: { fontSize: 13, color: Colors.textSec },
   mealCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
