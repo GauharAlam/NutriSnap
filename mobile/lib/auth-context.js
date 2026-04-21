@@ -7,6 +7,7 @@ import {
   clearAllTokens,
 } from './auth-storage';
 import { apiClient, setAccessTokenHeader, clearAccessTokenHeader } from './api';
+import { registerForPushNotificationsAsync } from './notifications';
 
 const AuthContext = createContext(null);
 
@@ -77,6 +78,19 @@ export function AuthProvider({ children }) {
     bootstrap();
     return () => { mounted = false; };
   }, []);
+
+  /* ─── Register Push Token ─── */
+  useEffect(() => {
+    if (user && !isBootstrapping) {
+      registerForPushNotificationsAsync().then((token) => {
+        if (token) {
+          apiClient.put('/auth/push-token', { expoPushToken: token }).catch(err => {
+            console.log('Failed to save push token', err.response?.data || err.message);
+          });
+        }
+      });
+    }
+  }, [user, isBootstrapping]);
 
   /* ─── Login ─── */
   const login = useCallback(async (credentials) => {

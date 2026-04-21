@@ -68,3 +68,22 @@ export const me = asyncHandler(async (req, res) => {
     data: user,
   });
 });
+
+export const updatePushToken = asyncHandler(async (req, res) => {
+  const { expoPushToken } = req.body;
+  if (!expoPushToken) {
+    return res.status(400).json({ success: false, message: "expoPushToken is required" });
+  }
+  
+  await getCurrentUser(req.user.id); // Validates user exists
+  
+  // We'll import the User model here to update it directly, or we could add a service method.
+  // Using direct update for brevity.
+  const { User } = await import("../../models/user.model.js");
+  await User.findByIdAndUpdate(req.user.id, { expoPushToken });
+  
+  res.status(200).json({
+    success: true,
+    message: "Push token updated successfully",
+  });
+});

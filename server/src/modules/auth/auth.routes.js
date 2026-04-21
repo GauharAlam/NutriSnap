@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../../middleware/auth.js";
-import { login, logout, me, refresh, register } from "./auth.controller.js";
+import { login, logout, me, refresh, register, updatePushToken } from "./auth.controller.js";
 import {
   validateLoginPayload,
   validateRefreshPayload,
@@ -14,5 +14,6 @@ router.post("/login", validateLoginPayload, login);
 router.post("/refresh", validateRefreshPayload, refresh);
 router.post("/logout", logout);
 router.get("/me", requireAuth, me);
+router.put("/push-token", requireAuth, updatePushToken);
 
 export default router;

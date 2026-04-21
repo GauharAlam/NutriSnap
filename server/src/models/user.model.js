@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema(
       enum: ["weight_loss", "muscle_gain", "maintenance"],
       default: "maintenance",
     },
+    expoPushToken: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,

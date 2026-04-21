@@ -20,16 +20,16 @@ const settingsSections = [
   {
     title: 'Preferences',
     items: [
-      { icon: '🔔', label: 'Push Notifications', type: 'toggle' },
-      { icon: '⌚', label: 'Smartwatch Sync', type: 'toggle' },
+      { icon: '🔔', label: 'Push Notifications', type: 'link', route: '/settings/notifications' },
+      { icon: '⌚', label: 'Smartwatch Sync', type: 'link', route: '/settings/smartwatch' },
     ],
   },
   {
     title: 'Account',
     items: [
-      { icon: '🔒', label: 'Privacy & Security', type: 'link' },
-      { icon: '📊', label: 'Data & Export', type: 'link' },
-      { icon: '❓', label: 'Help & Support', type: 'link' },
+      { icon: '🔒', label: 'Privacy & Security', type: 'link', route: '/settings/privacy' },
+      { icon: '📊', label: 'Data & Export', type: 'link', route: '/settings/export' },
+      { icon: '❓', label: 'Help & Support', type: 'link', route: '/settings/support' },
     ],
   },
 ];
@@ -41,7 +41,6 @@ export default function ProfileScreen() {
   const [workoutStats, setWorkoutStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isUpdatingGoal, setIsUpdatingGoal] = useState(false);
-  const [toggles, setToggles] = useState({ 'Push Notifications': true, 'Smartwatch Sync': false });
 
   const firstName = user?.name?.split(' ')[0] || 'Athlete';
 
@@ -180,30 +179,19 @@ export default function ProfileScreen() {
             <Text style={[styles.sectionLabel, { marginBottom: 8 }]}>{section.title}</Text>
             <GlassCard style={{ padding: 0, overflow: 'hidden' }}>
               {section.items.map((item, i) => (
-                <View
+                <Pressable
                   key={item.label}
-                  style={[
+                  onPress={() => router.push(item.route)}
+                  style={({ pressed }) => [
                     styles.settingRow,
+                    pressed && { backgroundColor: 'rgba(255,255,255,0.02)' },
                     i < section.items.length - 1 && styles.settingDivider,
                   ]}
                 >
                   <Text style={{ fontSize: 18 }}>{item.icon}</Text>
                   <Text style={styles.settingLabel}>{item.label}</Text>
-                  {item.type === 'toggle' ? (
-                    <Pressable
-                      onPress={() => setToggles((p) => ({ ...p, [item.label]: !p[item.label] }))}
-                    >
-                      <View style={[styles.toggle, toggles[item.label] && styles.toggleOn]}>
-                        <View style={[
-                          styles.toggleDot,
-                          toggles[item.label] && styles.toggleDotOn,
-                        ]} />
-                      </View>
-                    </Pressable>
-                  ) : (
-                    <Text style={{ color: Colors.textMuted, fontSize: 14 }}>›</Text>
-                  )}
-                </View>
+                  <Text style={{ color: Colors.textMuted, fontSize: 18 }}>›</Text>
+                </Pressable>
               ))}
             </GlassCard>
           </View>

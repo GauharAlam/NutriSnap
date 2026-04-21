@@ -14,6 +14,7 @@ if (process.env.SENTRY_DSN) {
 }
 
 import { app } from "./app.js";
+import { setupCronJobs } from "./jobs/daily-coach.job.js";
 
 async function bootstrap() {
   try {
@@ -22,6 +23,9 @@ async function bootstrap() {
     const server = app.listen(env.port, () => {
       logger.info(`🚀 API listening on port ${env.port} [${env.nodeEnv}]`);
     });
+
+    // Start background jobs
+    setupCronJobs();
 
     // Graceful shutdown handling
     const shutdown = async (signal) => {
