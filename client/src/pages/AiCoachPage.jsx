@@ -106,10 +106,10 @@ export function AiCoachPage() {
                 <div className={`prose prose-sm max-w-none leading-relaxed ${isUser ? "prose-invert text-dark-900 font-medium" : "text-dark-100"}`}>
                   <ReactMarkdown
                     components={{
-                      p: ({ node, ...props }) => <p className="m-0" {...props} />,
-                      ul: ({ node, ...props }) => <ul className="pl-4 my-2 list-disc" {...props} />,
-                      ol: ({ node, ...props }) => <ol className="pl-4 my-2 list-decimal" {...props} />,
-                      li: ({ node, ...props }) => <li className="my-0.5" {...props} />,
+                      p: ({ node: _node, ...props }) => <p className="m-0" {...props} />,
+                      ul: ({ node: _node, ...props }) => <ul className="pl-4 my-2 list-disc" {...props} />,
+                      ol: ({ node: _node, ...props }) => <ol className="pl-4 my-2 list-decimal" {...props} />,
+                      li: ({ node: _node, ...props }) => <li className="my-0.5" {...props} />,
                     }}
                   >
                     {msg.text}

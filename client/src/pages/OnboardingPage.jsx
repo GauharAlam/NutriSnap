@@ -28,7 +28,7 @@ const slides = [
 export function OnboardingPage() {
   const navigate = useNavigate();
   const [current, setCurrent] = useState(0);
-  const [direction, setDirection] = useState(1);
+  const [, setDirection] = useState(1);
 
   function handleNext() {
     if (current < slides.length - 1) {

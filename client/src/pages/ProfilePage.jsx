@@ -90,7 +90,7 @@ export function ProfilePage() {
       if (data.success) {
         setGoalData(data.data);
       }
-    } catch (err) {
+    } catch {
       setError("Failed to update goal. Try again.");
     } finally {
       setIsUpdatingGoal(false);
