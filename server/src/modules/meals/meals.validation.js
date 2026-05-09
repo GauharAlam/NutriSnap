@@ -2,7 +2,7 @@ import { AppError } from "../../utils/app-error.js";
 
 const allowedMealTypes = ["breakfast", "lunch", "dinner", "snack"];
 const allowedSources = ["manual", "image_upload", "ai_estimated"];
-const nutrientFields = ["calories", "protein", "carbs", "fats", "sugar"];
+const nutrientFields = ["calories", "protein", "carbs", "fats", "sugar", "fiber", "sodium"];
 
 function isValidDate(value) {
   return !Number.isNaN(new Date(value).getTime());
@@ -18,6 +18,11 @@ function validateNutrition(nutrition) {
   }
 
   for (const field of nutrientFields) {
+    // Optional fields for backwards compatibility
+    if (["fiber", "sodium"].includes(field) && nutrition[field] === undefined) {
+      continue;
+    }
+
     if (!isFiniteNumber(nutrition[field]) || nutrition[field] < 0) {
       throw new AppError(`Nutrition value for ${field} must be a valid number`, 400);
     }
@@ -30,12 +35,16 @@ function validateFoodItems(foodItems) {
   }
 
   if (!Array.isArray(foodItems)) {
-    throw new AppError("Food items must be an array of strings", 400);
+    throw new AppError("Food items must be an array", 400);
   }
 
   for (const item of foodItems) {
-    if (typeof item !== "string") {
-      throw new AppError("Food items must be strings", 400);
+    if (typeof item === "string") {
+      continue; // backwards compatibility
+    }
+    
+    if (typeof item !== "object" || !item.name) {
+      throw new AppError("Each food item must have a name", 400);
     }
   }
 }

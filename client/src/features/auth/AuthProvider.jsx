@@ -87,6 +87,18 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  useEffect(() => {
+    function handleSessionExpired() {
+      setAccessToken(null);
+      setUser(null);
+    }
+
+    window.addEventListener("nutrisnap:session-expired", handleSessionExpired);
+    return () => {
+      window.removeEventListener("nutrisnap:session-expired", handleSessionExpired);
+    };
+  }, []);
+
   async function register(credentials) {
     try {
       const response = await apiClient.post("/auth/register", credentials);

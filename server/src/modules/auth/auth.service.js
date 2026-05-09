@@ -17,6 +17,7 @@ function formatAuthResponse(user, accessToken) {
       name: user.name,
       email: user.email,
       goalType: user.goalType,
+      profile: user.profile || {},
       createdAt: user.createdAt,
     },
   };
@@ -38,12 +39,24 @@ export async function registerUser(payload) {
   }
 
   const passwordHash = await bcrypt.hash(payload.password, 12);
-  const user = await User.create({
+
+  const userData = {
     name: payload.name.trim(),
     email: payload.email.toLowerCase(),
     passwordHash,
     goalType: payload.goalType || "maintenance",
-  });
+  };
+
+  // Accept optional profile data during registration
+  if (payload.profile) {
+    userData.profile = payload.profile;
+    // Sync goalType from profile.trainingGoal if provided
+    if (payload.profile.trainingGoal) {
+      userData.goalType = payload.profile.trainingGoal;
+    }
+  }
+
+  const user = await User.create(userData);
 
   const accessToken = signAccessToken(user);
   const refreshTokenPayload = signRefreshToken(user);

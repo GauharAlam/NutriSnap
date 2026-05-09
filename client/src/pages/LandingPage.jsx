@@ -196,7 +196,7 @@ export function LandingPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neon-blue opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-neon-blue" />
               </span>
-              <span className="text-neon-blue text-[11px] font-bold tracking-[0.2em] uppercase">Powered by Gemini AI</span>
+              <span className="text-neon-blue text-[11px] font-bold tracking-[0.2em] uppercase">Powered by AI</span>
             </div>
           </div>
 
@@ -282,7 +282,7 @@ export function LandingPage() {
                 step: "01",
                 icon: "📸",
                 title: "Snap Your Meal",
-                desc: "Point your camera at any plate. NutriSnap's Gemini AI instantly identifies every ingredient, portion size, and nutritional breakdown.",
+                desc: "Point your camera at any plate. NutriSnap's AI instantly identifies every ingredient, portion size, and nutritional breakdown.",
                 color: "from-neon-blue/20 to-neon-teal/20",
                 border: "border-neon-blue/20",
               },
@@ -335,10 +335,10 @@ export function LandingPage() {
           icon="📸"
           badge="AI Vision"
           title="Your Camera is Now a Nutritionist"
-          description="Simply photograph your meal and our Gemini AI identifies every ingredient, estimates calories, protein, carbs, and fats — all in under 3 seconds."
+          description="Simply photograph your meal and our AI identifies every ingredient, estimates calories, protein, carbs, and fats — all in under 3 seconds."
           gradient="from-neon-blue/30 to-neon-teal/30"
           features={[
-            "Instant food recognition with Google Gemini AI",
+            "Instant food recognition with AI",
             "Accurate macro breakdown: calories, protein, carbs, fats",
             "Works with any cuisine — Indian, Western, Asian, and more",
             "One-tap meal logging after AI confirmation",
@@ -554,7 +554,7 @@ export function LandingPage() {
           {[
             {
               icon: "🧠",
-              title: "Google Gemini AI",
+              title: "AI Analysis",
               desc: "State-of-the-art vision model that recognizes 10,000+ foods across any cuisine.",
               glow: "shadow-[0_0_20px_rgba(0,212,255,0.08)]",
             },
@@ -657,7 +657,7 @@ export function LandingPage() {
             <span className="font-display text-sm font-bold text-white">NutriSnap</span>
           </div>
           <p className="text-center text-[9px] text-dark-500 tracking-[0.25em] uppercase">
-            Built with ❤️ using React • Node.js • MongoDB • Google Gemini AI
+            Built with ❤️ using React • Node.js • MongoDB • AI
           </p>
           <p className="text-center text-[9px] text-dark-600 mt-2">
             © 2026 NutriSnap — The Premium AI Fitness Experience

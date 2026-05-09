@@ -83,6 +83,7 @@ export function AppShell() {
               <NavLink
                 key={item.to}
                 to={item.to}
+                aria-label={item.label}
                 className={({ isActive }) =>
                   `nav-item ${isActive ? "active" : ""}`
                 }
@@ -99,7 +100,8 @@ export function AppShell() {
       {showBottomNav && location.pathname !== "/coach" && (
         <NavLink
           to="/coach"
-          className="fixed bottom-[84px] right-4 w-12 h-12 rounded-full bg-gradient-to-br from-neon-blue to-neon-purple flex items-center justify-center text-xl shadow-[0_4px_15px_rgba(0,212,255,0.4)] z-50 hover:scale-105 active:scale-95 transition-transform"
+          aria-label="Open AI coach"
+          className="fixed bottom-[84px] right-4 sm:right-auto sm:left-[calc(50%+151px)] w-12 h-12 rounded-full bg-gradient-to-br from-neon-blue to-neon-purple flex items-center justify-center text-xl shadow-[0_4px_15px_rgba(0,212,255,0.4)] z-50 hover:scale-105 active:scale-95 transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon-blue"
         >
           <span className="animate-pulse">🤖</span>
           <div className="absolute top-0 right-0 w-3 h-3 rounded-full bg-neon-green border-2 border-dark-900" />

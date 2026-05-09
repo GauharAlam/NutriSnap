@@ -1,5 +1,15 @@
 import mongoose from "mongoose";
 
+const foodItemSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    portionMultiplier: { type: Number, default: 1 },
+    servingLabel: { type: String, default: "1 serving" },
+    matchedFood: { type: String, default: "" },
+  },
+  { _id: false }
+);
+
 const mealSchema = new mongoose.Schema(
   {
     userId: {
@@ -19,7 +29,7 @@ const mealSchema = new mongoose.Schema(
       required: true,
     },
     foodItems: {
-      type: [String],
+      type: [foodItemSchema],
       default: [],
     },
     notes: {
@@ -67,11 +77,26 @@ const mealSchema = new mongoose.Schema(
         required: true,
         min: 0,
       },
+      fiber: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      sodium: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
     },
     source: {
       type: String,
       enum: ["manual", "image_upload", "ai_estimated"],
       default: "manual",
+    },
+    aiConfidence: {
+      type: String,
+      enum: ["high", "medium", "low"],
+      default: "medium",
     },
   },
   {

@@ -32,9 +32,16 @@ const progressStorage = multer.diskStorage({
   },
 });
 
+const ALLOWED_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+
 function fileFilter(req, file, cb) {
   if (!file.mimetype.startsWith("image/")) {
     return cb(new AppError("Only image uploads are supported", 400));
+  }
+
+  const ext = path.extname(file.originalname || "").toLowerCase();
+  if (ext && !ALLOWED_EXTENSIONS.has(ext)) {
+    return cb(new AppError(`File extension '${ext}' is not allowed. Accepted: ${[...ALLOWED_EXTENSIONS].join(", ")}`, 400));
   }
 
   cb(null, true);

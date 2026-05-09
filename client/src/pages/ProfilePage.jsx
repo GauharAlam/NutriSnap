@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { ErrorState, InlineNotice } from "../components/ui/StatusState";
 import { useAuth } from "../features/auth/useAuth";
-import { useTheme } from "../features/theme/ThemeProvider";
+import { useTheme } from "../features/theme/theme-context";
 import { apiClient } from "../lib/api/client";
 
 const settingsSections = [
@@ -44,23 +45,30 @@ export function ProfilePage() {
   const [isUpdatingGoal, setIsUpdatingGoal] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const [goalRes, workoutRes] = await Promise.all([
-          apiClient.get("/goals"),
-          apiClient.get("/workouts")
-        ]);
-        if (goalRes.data.success) setGoalData(goalRes.data.data);
-        if (workoutRes.data.success) setWorkoutStats(workoutRes.data.data.stats);
-      } catch (err) {
-        console.error("Profile data fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
+  const fetchData = useCallback(async function fetchData() {
+    setLoading(true);
+    setError("");
+    const results = await Promise.allSettled([
+      apiClient.get("/goals"),
+      apiClient.get("/workouts"),
+    ]);
+    const [goalRes, workoutRes] = results;
+
+    if (goalRes.status === "fulfilled" && goalRes.value.data.success) {
+      setGoalData(goalRes.value.data.data);
     }
-    fetchData();
+    if (workoutRes.status === "fulfilled" && workoutRes.value.data.success) {
+      setWorkoutStats(workoutRes.value.data.data.stats);
+    }
+    if (results.some((result) => result.status === "rejected")) {
+      setError("Some profile data could not be loaded.");
+    }
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const firstName = user?.name?.split(" ")[0] || "Athlete";
 
@@ -142,10 +150,11 @@ export function ProfilePage() {
 
       {/* Error */}
       {error && (
-        <div className="rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400 flex items-center justify-between animate-slide-up">
-          <span>{error}</span>
-          <button onClick={() => setError("")} className="text-red-400 hover:text-red-300 text-lg ml-2">✕</button>
-        </div>
+        error.includes("profile data") ? (
+          <ErrorState compact title="Profile partially loaded" message={error} actionLabel="Refresh" onAction={fetchData} />
+        ) : (
+          <InlineNotice tone="danger" onDismiss={() => setError("")}>{error}</InlineNotice>
+        )
       )}
 
       {/* Goal Settings */}

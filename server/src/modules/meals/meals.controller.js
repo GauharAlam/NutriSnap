@@ -3,6 +3,7 @@ import { env } from "../../config/env.js";
 import { cloudinary } from "../../config/cloudinary.js";
 import { analyzeMealImageWithAi } from "../../services/ai/meal-analysis.service.js";
 import { estimateNutritionFromItems } from "../../services/nutrition/meal-estimator.service.js";
+import { listMealTemplates } from "../../services/nutrition/meal-templates.service.js";
 import { asyncHandler } from "../../utils/async-handler.js";
 import { AppError } from "../../utils/app-error.js";
 import {
@@ -105,5 +106,14 @@ export const deleteMealEntry = asyncHandler(async (req, res) => {
     success: true,
     message: "Meal deleted successfully",
     data: deletedMeal,
+  });
+});
+
+export const getTemplates = asyncHandler(async (req, res) => {
+  const templates = await listMealTemplates(req.query);
+
+  res.status(200).json({
+    success: true,
+    data: templates,
   });
 });

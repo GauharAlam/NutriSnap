@@ -7,5 +7,6 @@ const router = Router();
 
 router.get("/", requireAuth, getGoal);
 router.put("/", requireAuth, validateGoalPayload, upsertGoal);
+router.post("/", requireAuth, validateGoalPayload, upsertGoal);
 
 export default router;

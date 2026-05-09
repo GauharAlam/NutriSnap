@@ -3,6 +3,7 @@ import { User } from '../models/user.model.js';
 import { Workout } from '../models/workout.model.js';
 import { sendPushNotification } from '../services/notification.service.js';
 import { getAssistantAdvice } from '../services/ai/diet-assistant.service.js';
+import { getDailyDashboard } from '../modules/progress/progress.service.js';
 import { logger } from '../config/logger.js';
 
 /**
@@ -27,13 +28,16 @@ export const runDailyCoachJob = async () => {
     for (const user of activeUsers) {
       try {
         // Fetch recent context for this user
-        const lastWorkout = await Workout.findOne({ userId: user._id }).sort({ date: -1 });
+        const lastWorkout = await Workout.findOne({ userId: user._id }).sort({ completedAt: -1 });
 
         // Build a prompt summarizing their current status
         const daysSinceLastWorkout = lastWorkout
-          ? Math.floor((new Date() - new Date(lastWorkout.date)) / (1000 * 60 * 60 * 24))
+          ? Math.floor((new Date() - new Date(lastWorkout.completedAt)) / (1000 * 60 * 60 * 24))
           : null;
 
+        // Fetch yesterday's nutrition progress
+        const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+        const yesterdayProgress = await getDailyDashboard(user._id, yesterdayStr);
         const calEaten = yesterdayProgress?.summary?.calories || 0;
         
         let systemPrompt = `You are a personalized AI Fitness Coach for ${user.name}. Generate a SINGLE, short push notification message (max 150 characters). Be highly motivational. Context:\n`;

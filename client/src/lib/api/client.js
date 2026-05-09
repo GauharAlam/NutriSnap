@@ -2,7 +2,7 @@ import axios from "axios";
 import { clearStoredAccessToken, storeAccessToken } from "../../features/auth/auth-storage";
 
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "/api/v1",
   withCredentials: true,
 });
 
@@ -76,10 +76,7 @@ apiClient.interceptors.response.use(
         processQueue(err, null);
         clearStoredAccessToken();
         clearAccessTokenHeader();
-        // Force logout via auth context or window refresh if refresh token expires natively
-        if (window.location.pathname !== "/login" && window.location.pathname !== "/landing" && window.location.pathname !== "/") {
-          window.location.href = "/login";
-        }
+        window.dispatchEvent(new CustomEvent("nutrisnap:session-expired"));
         return Promise.reject(err);
       } finally {
         isRefreshing = false;

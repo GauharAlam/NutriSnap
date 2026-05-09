@@ -20,6 +20,8 @@ import progressRoutes from "./modules/progress/progress.routes.js";
 import workoutsRoutes from "./modules/workouts/workouts.routes.js";
 import workoutPlansRoutes from "./modules/workout-plans/workout-plans.routes.js";
 import waterRoutes from "./modules/water/water.routes.js";
+import profileRoutes from "./modules/profile/profile.routes.js";
+import exercisesRoutes from "./modules/exercises/exercises.routes.js";
 export const app = express();
 
 /* ─── Security ─── */
@@ -38,8 +40,10 @@ app.use(
       // Allow requests with no origin (mobile apps, curl, etc.)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
+      } else if (env.nodeEnv === "production") {
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
       } else {
-        callback(null, true); // In dev, allow all; in prod, restrict
+        callback(null, true); // In dev, allow all
       }
     },
     credentials: true,
@@ -111,13 +115,15 @@ app.get("/api/health", (req, res) => {
 
 /* ─── API Routes ─── */
 app.use("/api/v1/auth", authLimiter, authRoutes);
-app.use("/api/v1/meals", mealsRoutes);
+app.use("/api/v1/meals", aiLimiter, mealsRoutes);
 app.use("/api/v1/goals", goalsRoutes);
 app.use("/api/v1/progress", progressRoutes);
-app.use("/api/v1/assistant", assistantRoutes);
+app.use("/api/v1/assistant", aiLimiter, assistantRoutes);
 app.use("/api/v1/workouts", workoutsRoutes);
 app.use("/api/v1/workout-plans", workoutPlansRoutes);
 app.use("/api/v1/water", waterRoutes);
+app.use("/api/v1/profile", profileRoutes);
+app.use("/api/v1/exercises", exercisesRoutes);
 
 /* ─── Error Handling ─── */
 app.use(notFoundHandler);

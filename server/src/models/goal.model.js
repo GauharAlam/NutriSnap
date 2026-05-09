@@ -11,7 +11,7 @@ const goalSchema = new mongoose.Schema(
     },
     goalType: {
       type: String,
-      enum: ["weight_loss", "muscle_gain", "maintenance"],
+      enum: ["weight_loss", "muscle_gain", "maintenance", "recomp"],
       required: true,
     },
     dailyTargets: {

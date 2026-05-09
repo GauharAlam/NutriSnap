@@ -13,6 +13,7 @@ function formatMeal(meal) {
     imagePath: meal.imagePath,
     nutrition: meal.nutrition,
     source: meal.source,
+    aiConfidence: meal.aiConfidence,
     createdAt: meal.createdAt,
     updatedAt: meal.updatedAt,
   };
@@ -25,6 +26,8 @@ function zeroSummary() {
     carbs: 0,
     fats: 0,
     sugar: 0,
+    fiber: 0,
+    sodium: 0,
     mealCount: 0,
   };
 }
@@ -52,11 +55,13 @@ function buildDateRange(dateString) {
 function buildSummary(meals) {
   return meals.reduce(
     (summary, meal) => ({
-      calories: summary.calories + meal.nutrition.calories,
-      protein: summary.protein + meal.nutrition.protein,
-      carbs: summary.carbs + meal.nutrition.carbs,
-      fats: summary.fats + meal.nutrition.fats,
-      sugar: summary.sugar + meal.nutrition.sugar,
+      calories: summary.calories + (meal.nutrition.calories || 0),
+      protein: summary.protein + (meal.nutrition.protein || 0),
+      carbs: summary.carbs + (meal.nutrition.carbs || 0),
+      fats: summary.fats + (meal.nutrition.fats || 0),
+      sugar: summary.sugar + (meal.nutrition.sugar || 0),
+      fiber: summary.fiber + (meal.nutrition.fiber || 0),
+      sodium: summary.sodium + (meal.nutrition.sodium || 0),
       mealCount: summary.mealCount + 1,
     }),
     zeroSummary()
@@ -65,8 +70,16 @@ function buildSummary(meals) {
 
 function sanitizeFoodItems(foodItems = []) {
   return foodItems
-    .map((item) => item.trim())
-    .filter(Boolean);
+    .map((item) => {
+      if (typeof item === "string") {
+        return { name: item.trim() };
+      }
+      return {
+        ...item,
+        name: item.name?.trim() || "Unnamed food",
+      };
+    })
+    .filter((item) => item.name);
 }
 
 export async function createMeal(userId, payload) {
@@ -81,6 +94,7 @@ export async function createMeal(userId, payload) {
     imagePath: payload.imagePath || "",
     nutrition: payload.nutrition,
     source: payload.source || (payload.imageUrl ? "image_upload" : "manual"),
+    aiConfidence: payload.aiConfidence || "medium",
   });
 
   return formatMeal(meal);
@@ -144,6 +158,10 @@ export async function updateMeal(userId, mealId, payload) {
 
   if (payload.source !== undefined) {
     meal.source = payload.source;
+  }
+
+  if (payload.aiConfidence !== undefined) {
+    meal.aiConfidence = payload.aiConfidence;
   }
 
   await meal.save();

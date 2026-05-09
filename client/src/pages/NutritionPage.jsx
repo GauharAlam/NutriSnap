@@ -1,35 +1,13 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { CircleProgress } from "../components/ui/CircleProgress";
+import { ErrorState, InlineNotice } from "../components/ui/StatusState";
+import { WaterTracker } from "../components/ui/WaterTracker";
+import { useDailyWater } from "../features/water/useDailyWater";
 import { apiClient } from "../lib/api/client";
-
-/* ─── SVG Circle Progress ─── */
-function CircleProgress({ value, max, size = 100, strokeWidth = 8, color = "#00d4ff", label }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const pct = Math.min(value / max, 1);
-  const offset = circumference * (1 - pct);
-
-  return (
-    <div className="stat-circle" style={{ width: size, height: size }}>
-      <svg width={size} height={size}>
-        <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeWidth} />
-        <circle
-          cx={size/2} cy={size/2} r={radius} fill="none"
-          stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
-          strokeDasharray={circumference} strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg font-bold text-white">{value}</span>
-        <span className="text-[10px] text-dark-300">{label}</span>
-      </div>
-    </div>
-  );
-}
 
 /* ─── Progress Bar ─── */
 function MacroBar({ value, max, color, label, unit = "g" }) {
-  const pct = Math.min((value / max) * 100, 100);
+  const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
@@ -44,16 +22,8 @@ function MacroBar({ value, max, color, label, unit = "g" }) {
 }
 
 export function NutritionPage() {
-  const [waterGlasses, setWaterGlasses] = useState(() => {
-    const today = new Date().toISOString().split("T")[0];
-    const saved = localStorage.getItem(`water-${today}`);
-    return saved !== null ? parseInt(saved, 10) : 0;
-  });
+  const { waterCount, setWaterCount, totalGlasses } = useDailyWater();
   const [caloriesBurned, setCaloriesBurned] = useState(0);
-
-  useEffect(() => {
-    localStorage.setItem(`water-${new Date().toISOString().split("T")[0]}`, waterGlasses);
-  }, [waterGlasses]);
   const [meals, setMeals] = useState([]);
   const fileInputRef = useRef(null);
 
@@ -67,37 +37,45 @@ export function NutritionPage() {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [uploadedImagePath, setUploadedImagePath] = useState(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    const results = await Promise.allSettled([
+      apiClient.get("/meals"),
+      apiClient.get("/goals"),
+      apiClient.get("/workouts"),
+    ]);
+    const [mealsRes, goalsRes, workoutRes] = results;
 
-  async function fetchData() {
-    try {
-      const [mealsRes, goalsRes, workoutRes] = await Promise.all([
-        apiClient.get("/meals"),
-        apiClient.get("/goals"),
-        apiClient.get("/workouts"),
-      ]);
-      if (mealsRes.data?.success) {
-        setMeals(mealsRes.data.data.meals || []);
-      }
-      if (goalsRes.data?.success && goalsRes.data.data?.dailyTargets) {
-        const t = goalsRes.data.data.dailyTargets;
+    if (mealsRes.status === "fulfilled" && mealsRes.value.data?.success) {
+      setMeals(mealsRes.value.data.data.meals || []);
+    }
+    if (goalsRes.status === "fulfilled" && goalsRes.value.data?.success && goalsRes.value.data.data?.dailyTargets) {
+      const t = goalsRes.value.data.data.dailyTargets;
         setGoalTargets({
           calories: t.calories || 2400,
           protein: t.protein || 170,
           carbs: t.carbs || 250,
           fats: t.fats || 75,
         });
-      }
-      if (workoutRes.data?.success) {
-        setCaloriesBurned(workoutRes.data.data.stats?.totalCalories || 0);
-      }
-    } catch (err) {
-      console.error("Failed to load nutrition data:", err);
     }
-  }
+    if (workoutRes.status === "fulfilled" && workoutRes.value.data?.success) {
+      setCaloriesBurned(workoutRes.value.data.data.stats?.totalCalories || 0);
+    }
+
+    if (results.some((result) => result.status === "rejected")) {
+      setLoadError("Some nutrition data could not be loaded.");
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   async function fetchMeals() {
     try {
@@ -105,8 +83,8 @@ export function NutritionPage() {
       if (data && data.success) {
         setMeals(data.data.meals || []);
       }
-    } catch (err) {
-      console.error("Failed to load meals:", err);
+    } catch {
+      setActionError("Meal list could not be refreshed.");
     }
   }
 
@@ -123,6 +101,7 @@ export function NutritionPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setActionError("");
     setIsUploading(true);
     try {
       const formData = new FormData();
@@ -145,8 +124,8 @@ export function NutritionPage() {
         originalName,
       });
       setAiAnalysis(analyzeRes.data);
-    } catch (err) {
-      console.error("Error in AI flow:", err);
+    } catch {
+      setActionError("Meal analysis failed. Try a clearer photo or log again.");
       setShowAiModal(false);
     } finally {
       setIsUploading(false);
@@ -159,6 +138,9 @@ export function NutritionPage() {
     if (!aiAnalysis) return;
 
     try {
+      if (!aiAnalysis.analysis || !aiAnalysis.nutritionEstimate) {
+        throw new Error("Invalid meal analysis");
+      }
       const payload = {
         title: aiAnalysis.analysis.title,
         mealType: aiAnalysis.analysis.mealType,
@@ -181,8 +163,8 @@ export function NutritionPage() {
       setShowAiModal(false);
       setAiAnalysis(null);
       fetchMeals();
-    } catch (err) {
-      console.error("Failed to save meal:", err);
+    } catch {
+      setActionError("Meal could not be saved. Please try again.");
     }
   }
 
@@ -196,8 +178,31 @@ export function NutritionPage() {
         <h1 className="section-title mt-1">Daily Fuel</h1>
       </div>
 
+      {loadError && (
+        <ErrorState
+          compact
+          title="Nutrition partially loaded"
+          message={loadError}
+          actionLabel="Refresh"
+          onAction={fetchData}
+        />
+      )}
+
+      {actionError && (
+        <InlineNotice tone="danger" onDismiss={() => setActionError("")}>
+          {actionError}
+        </InlineNotice>
+      )}
+
+      {loading && (
+        <div className="space-y-4 animate-pulse">
+          <div className="h-36 rounded-3xl bg-glass-light" />
+          <div className="h-40 rounded-3xl bg-glass-light" />
+        </div>
+      )}
+
       {/* Calories Overview */}
-      <div className="glass-card-static p-5 animate-slide-up delay-100">
+      {!loading && <div className="glass-card-static p-5 animate-slide-up delay-100">
         <div className="flex items-center gap-5">
           <CircleProgress
             value={totalConsumed.calories}
@@ -206,6 +211,7 @@ export function NutritionPage() {
             strokeWidth={8}
             color="#f97316"
             label="kcal"
+            mode="value"
           />
           <div className="flex-1 space-y-3">
             <div>
@@ -228,48 +234,20 @@ export function NutritionPage() {
             </div>
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* Macro Breakdown */}
-      <div className="glass-card-static p-5 space-y-4 animate-slide-up delay-200">
+      {!loading && <div className="glass-card-static p-5 space-y-4 animate-slide-up delay-200">
         <p className="text-sm font-semibold text-white">Macro Tracking</p>
         <MacroBar value={totalConsumed.protein} max={totalTarget.protein} color="from-neon-blue to-neon-purple" label="Protein" />
         <MacroBar value={totalConsumed.carbs} max={totalTarget.carbs} color="from-neon-orange to-yellow-500" label="Carbs" />
         <MacroBar value={totalConsumed.fats} max={totalTarget.fats} color="from-neon-pink to-neon-purple" label="Fats" />
-      </div>
+      </div>}
 
       {/* Water Tracker */}
-      <div className="glass-card-static p-5 animate-slide-up delay-300">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <p className="text-sm font-semibold text-white">Water Reminder</p>
-            <p className="text-xs text-dark-300">{waterGlasses}/8 glasses today</p>
-          </div>
-          <div className="w-10 h-10 rounded-2xl bg-neon-blue/15 flex items-center justify-center text-xl">
-            💧
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 mb-3">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setWaterGlasses(i + 1)}
-              className={`flex-1 h-8 rounded-lg transition-all duration-300 ${
-                i < waterGlasses
-                  ? "bg-gradient-to-t from-neon-blue to-neon-teal"
-                  : "bg-glass-white"
-              }`}
-            />
-          ))}
-        </div>
-        <div className="progress-bar">
-          <div
-            className="progress-fill bg-gradient-to-r from-neon-blue to-neon-teal"
-            style={{ width: `${(waterGlasses / 8) * 100}%` }}
-          />
-        </div>
-      </div>
+      {!loading && <div className="animate-slide-up delay-300">
+        <WaterTracker value={waterCount} onChange={setWaterCount} total={totalGlasses} />
+      </div>}
 
       {/* Meal Plan */}
       <div className="space-y-3 animate-slide-up delay-400">
@@ -280,7 +258,7 @@ export function NutritionPage() {
           </button>
         </div>
 
-        {meals.length === 0 && (
+        {!loading && meals.length === 0 && (
           <div className="glass-card-static p-6 text-center text-dark-300 text-sm">
             No meals logged today. Snap a photo!
           </div>

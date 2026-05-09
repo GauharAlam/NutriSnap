@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ErrorState } from "../components/ui/StatusState";
 import { apiClient } from "../lib/api/client";
 
 /* ─── Mini Line Chart ─── */
@@ -81,31 +82,42 @@ export function ProgressPage() {
     totalSets: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const [progressRes, workoutRes] = await Promise.all([
-          apiClient.get("/progress/weekly"),
-          apiClient.get("/workouts")
-        ]);
-        
-        if (progressRes.data && progressRes.data.success) {
-          setWeeklyData(progressRes.data.data);
-        }
-        if (workoutRes.data && workoutRes.data.success) {
-          setWorkoutStats(workoutRes.data.data.stats);
-        }
-      } catch (err) {
-        console.error("Failed to fetch progress stats:", err);
-      } finally {
-        setLoading(false);
-      }
+  const fetchStats = useCallback(async function fetchStats() {
+    setLoading(true);
+    setError("");
+    const results = await Promise.allSettled([
+      apiClient.get("/progress/weekly"),
+      apiClient.get("/workouts"),
+    ]);
+    const [progressRes, workoutRes] = results;
+
+    if (progressRes.status === "fulfilled" && progressRes.value.data?.success) {
+      setWeeklyData(progressRes.value.data.data);
     }
-    fetchStats();
+    if (workoutRes.status === "fulfilled" && workoutRes.value.data?.success) {
+      setWorkoutStats(workoutRes.value.data.data.stats);
+    }
+    if (results.some((result) => result.status === "rejected")) {
+      setError("Some progress data could not be loaded.");
+    }
+    setLoading(false);
   }, []);
 
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   if (loading || !weeklyData) {
+    if (!loading && error) {
+      return (
+        <div className="pt-6 pb-4">
+          <ErrorState title="Progress unavailable" message={error} actionLabel="Retry" onAction={fetchStats} />
+        </div>
+      );
+    }
+
     return (
       <div className="pt-6 pb-4 space-y-6 animate-pulse">
          <div className="h-40 bg-glass-light rounded-3xl mx-1" />
@@ -145,6 +157,10 @@ export function ProgressPage() {
         <p className="section-label">Analytics</p>
         <h1 className="section-title mt-1">Your Progress</h1>
       </div>
+
+      {error && (
+        <ErrorState compact title="Progress partially loaded" message={error} actionLabel="Refresh" onAction={fetchStats} />
+      )}
 
       {/* Week Pulse Card */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-neon-orange/20 via-neon-pink/10 to-transparent border border-neon-orange/20 p-5 animate-slide-up delay-100">

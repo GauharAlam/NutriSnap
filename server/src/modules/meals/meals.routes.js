@@ -9,6 +9,7 @@ import {
   listMeals,
   updateMealEntry,
   uploadMealImage,
+  getTemplates,
 } from "./meals.controller.js";
 import { validateAnalyzeMealPayload } from "./meals.analysis.validation.js";
 import { validateEstimateNutritionPayload } from "./meals.estimate.validation.js";
@@ -34,6 +35,7 @@ router.post(
 );
 router.post("/", requireAuth, validateCreateMealPayload, createMealEntry);
 router.get("/", requireAuth, listMeals);
+router.get("/templates", requireAuth, getTemplates);
 router.patch("/:id", requireAuth, validateUpdateMealPayload, updateMealEntry);
 router.delete("/:id", requireAuth, deleteMealEntry);
 

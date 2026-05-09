@@ -1,37 +1,11 @@
-import { useState, useEffect, memo } from "react";
+import { useCallback, useEffect, memo, useState } from "react";
 import { Link } from "react-router-dom";
+import { CircleProgress } from "../components/ui/CircleProgress";
+import { EmptyState, ErrorState } from "../components/ui/StatusState";
+import { WaterTracker } from "../components/ui/WaterTracker";
 import { useAuth } from "../features/auth/useAuth";
+import { useDailyWater } from "../features/water/useDailyWater";
 import { apiClient } from "../lib/api/client";
-
-/* ─── SVG Circle Progress ─── */
-const CircleProgress = memo(function CircleProgress({ value, max, size = 100, strokeWidth = 8, color = "#00d4ff", label }) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const pct = max > 0 ? Math.min(Math.max(value / max, 0), 1) : 0;
-  const offset = circumference * (1 - pct);
-
-  return (
-    <div className="stat-circle" style={{ width: size, height: size }}>
-      <svg width={size} height={size}>
-        <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={strokeWidth} />
-        <circle
-          cx={size/2} cy={size/2} r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)" }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-lg font-bold text-white">{Math.round(pct * 100)}%</span>
-        {label && <span className="text-[10px] text-dark-300">{label}</span>}
-      </div>
-    </div>
-  );
-});
 
 /* ─── Quick Stat Card ─── */
 const QuickStat = memo(function QuickStat({ icon, value, label, color }) {
@@ -49,43 +23,42 @@ const QuickStat = memo(function QuickStat({ icon, value, label, color }) {
 
 export function DashboardPage() {
   const { user } = useAuth();
-  const [waterCount, setWaterCount] = useState(() => {
-    const today = new Date().toISOString().split("T")[0];
-    const saved = localStorage.getItem(`water-${today}`);
-    return saved !== null ? parseInt(saved, 10) : 0;
-  });
+  const { waterCount, setWaterCount, totalGlasses } = useDailyWater();
   const [greeting, setGreeting] = useState("Good morning");
   const [dailyProgress, setDailyProgress] = useState(null);
   const [workoutData, setWorkoutData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    localStorage.setItem(`water-${new Date().toISOString().split("T")[0]}`, waterCount);
-  }, [waterCount]);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    const results = await Promise.allSettled([
+      apiClient.get("/progress/daily"),
+      apiClient.get("/workouts"),
+    ]);
+
+    const [progressResult, workoutResult] = results;
+    if (progressResult.status === "fulfilled" && progressResult.value.data.success) {
+      setDailyProgress(progressResult.value.data.data);
+    }
+    if (workoutResult.status === "fulfilled" && workoutResult.value.data.success) {
+      setWorkoutData(workoutResult.value.data.data);
+    }
+
+    if (results.some((result) => result.status === "rejected")) {
+      setError("Some dashboard data could not be loaded.");
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     const h = new Date().getHours();
     if (h < 12) setGreeting("Good morning");
     else if (h < 17) setGreeting("Good afternoon");
     else setGreeting("Good evening");
-
-    async function fetchData() {
-      try {
-        const [progressRes, workoutRes] = await Promise.all([
-          apiClient.get("/progress/daily"),
-          apiClient.get("/workouts")
-        ]);
-        
-        if (progressRes.data.success) setDailyProgress(progressRes.data.data);
-        if (workoutRes.data.success) setWorkoutData(workoutRes.data.data);
-      } catch (err) {
-        console.error("Dashboard data fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const firstName = user?.name?.split(" ")[0] || "Athlete";
 
@@ -133,6 +106,16 @@ export function DashboardPage() {
           <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-neon-green border-2 border-dark-900" />
         </Link>
       </div>
+
+      {error && (
+        <ErrorState
+          compact
+          title="Dashboard partially loaded"
+          message={error}
+          actionLabel="Refresh"
+          onAction={fetchData}
+        />
+      )}
 
       {/* Today's Workout Hero Card */}
       <div className="animate-slide-up" style={{ animationDelay: "100ms" }}>
@@ -230,32 +213,7 @@ export function DashboardPage() {
 
         {/* Water Tracker */}
         <div className="col-span-3 glass-card-static p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-sm font-semibold text-white">Water</p>
-              <p className="text-[11px] text-dark-300">{waterCount}/8 glasses</p>
-            </div>
-            <span className="text-xl">💧</span>
-          </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setWaterCount(i < waterCount ? i : i + 1)}
-                className={`h-7 rounded-lg transition-all duration-300 ${
-                  i < waterCount
-                    ? "bg-gradient-to-t from-neon-blue to-neon-teal shadow-[0_0_8px_rgba(0,212,255,0.2)]"
-                    : "bg-glass-light hover:bg-glass-white"
-                }`}
-              />
-            ))}
-          </div>
-          <div className="progress-bar mt-3 !h-1.5">
-            <div
-              className="progress-fill bg-gradient-to-r from-neon-blue to-neon-teal !h-1.5"
-              style={{ width: `${(waterCount / 8) * 100}%` }}
-            />
-          </div>
+          <WaterTracker value={waterCount} onChange={setWaterCount} total={totalGlasses} compact />
         </div>
       </div>
 
@@ -285,13 +243,16 @@ export function DashboardPage() {
              </div>
           ))}
           {(!workoutData?.workouts || workoutData.workouts.length === 0) && (
-             <div className="glass-card-static p-8 text-center">
-               <div className="text-3xl mb-2">🏃</div>
-               <p className="text-sm text-dark-300">No activity yet. Time to start!</p>
-               <Link to="/workouts" className="inline-block mt-3 text-xs text-neon-blue font-semibold hover:underline">
-                 Explore Workouts →
-               </Link>
-             </div>
+             <EmptyState
+               icon="🏃"
+               title="No activity yet"
+               message="Start a workout and your recent sessions will appear here."
+               action={(
+                 <Link to="/workouts" className="mt-3 inline-block text-xs font-semibold text-neon-blue hover:underline">
+                   Explore Workouts →
+                 </Link>
+               )}
+             />
           )}
         </div>
       </div>

@@ -20,6 +20,7 @@ export function signRefreshToken(user) {
   const token = jwt.sign(
     {
       sub: user._id.toString(),
+      jti: crypto.randomUUID(),
     },
     env.jwtRefreshSecret,
     { expiresIn: `${REFRESH_TOKEN_TTL_DAYS}d` }

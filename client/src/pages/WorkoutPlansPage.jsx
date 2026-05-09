@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useCallback, useState, useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { ErrorState } from "../components/ui/StatusState";
 import { apiClient } from "../lib/api/client";
 
 const categories = [
@@ -29,20 +30,24 @@ export function WorkoutPlansPage() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [workoutPlans, setWorkoutPlans] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchPlans = useCallback(async function fetchPlans() {
+    setLoading(true);
+    setError("");
+    try {
+      const { data } = await apiClient.get("/workout-plans");
+      if (data?.success) setWorkoutPlans(data.data);
+    } catch {
+      setError("Workout plans could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchPlans() {
-      try {
-        const { data } = await apiClient.get("/workout-plans");
-        if (data?.success) setWorkoutPlans(data.data);
-      } catch (err) {
-        console.error("Failed to load plans:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchPlans();
-  }, []);
+  }, [fetchPlans]);
 
   const filteredPlans = useMemo(() => {
     return workoutPlans.filter((plan) => {
@@ -135,6 +140,8 @@ export function WorkoutPlansPage() {
               </div>
             ))}
           </div>
+        ) : error ? (
+          <ErrorState title="Plans unavailable" message={error} actionLabel="Retry" onAction={fetchPlans} />
         ) : filteredPlans.length === 0 ? (
           <div className="glass-card-static p-10 text-center">
             <div className="text-4xl mb-3">🔍</div>

@@ -3,6 +3,10 @@ import { Link } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { apiClient } from "../lib/api/client";
 
+function createMessageId(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function AiCoachPage() {
   const [messages, setMessages] = useState([
     {
@@ -34,7 +38,7 @@ export function AiCoachPage() {
     // Add user message
     setMessages((prev) => [
       ...prev,
-      { id: Date.now().toString(), role: "user", text: userMsg },
+      { id: createMessageId("user"), role: "user", text: userMsg },
     ]);
     setIsTyping(true);
 
@@ -44,14 +48,14 @@ export function AiCoachPage() {
       
       setMessages((prev) => [
         ...prev,
-        { id: Date.now().toString() + "_ai", role: "assistant", text: replyText },
+        { id: createMessageId("assistant"), role: "assistant", text: replyText },
       ]);
     } catch (error) {
       console.error("AI Chat error:", error);
       setMessages((prev) => [
         ...prev,
         { 
-          id: Date.now().toString() + "_err", 
+          id: createMessageId("error"), 
           role: "assistant", 
           text: "Something went wrong on my end! Please try again." 
         },
@@ -85,7 +89,7 @@ export function AiCoachPage() {
       </header>
 
       {/* Chat History */}
-      <main className="flex-1 overflow-y-auto px-4 pt-20 pb-24 max-w-lg mx-auto w-full hide-scrollbar flex flex-col gap-4">
+      <main className="flex-1 overflow-y-auto px-4 pt-20 pb-24 max-w-lg mx-auto w-full hide-scrollbar flex flex-col gap-4" aria-live="polite">
         {messages.map((msg) => {
           const isUser = msg.role === "user";
           return (
@@ -138,7 +142,9 @@ export function AiCoachPage() {
       {/* Input Area */}
       <footer className="fixed bottom-0 left-0 right-0 bg-dark-950 border-t border-white/5 z-50 p-4 pb-safe max-w-lg mx-auto">
         <form onSubmit={handleSend} className="relative flex items-center bg-glass-light border border-white/10 rounded-full focus-within:border-neon-blue/50 focus-within:ring-1 focus-within:ring-neon-blue/50 transition-all pl-4 pr-1.5 py-1.5">
+          <label htmlFor="coach-message" className="sr-only">Message your coach</label>
           <input
+            id="coach-message"
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -150,6 +156,7 @@ export function AiCoachPage() {
             type="submit"
             disabled={!inputValue.trim() || isTyping}
             className="w-10 h-10 rounded-full bg-neon-blue text-dark-900 flex items-center justify-center disabled:opacity-50 disabled:bg-dark-500 disabled:text-dark-300 transition-colors ml-2 flex-shrink-0"
+            aria-label="Send message"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13" />

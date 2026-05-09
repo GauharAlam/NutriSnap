@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { ErrorState } from "../components/ui/StatusState";
 import { apiClient } from "../lib/api/client";
 
 export function ExerciseDetailPage() {
@@ -7,22 +8,28 @@ export function ExerciseDetailPage() {
   const navigate = useNavigate();
   const [exercise, setExercise] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchPlan = useCallback(async function fetchPlan() {
+    setLoading(true);
+    setError("");
+    try {
+      const { data } = await apiClient.get(`/workout-plans/${id}`);
+      if (data && data.success) {
+        setExercise(data.data);
+      } else {
+        setError("Workout plan could not be found.");
+      }
+    } catch {
+      setError("Workout plan could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    async function fetchPlan() {
-      try {
-        const { data } = await apiClient.get(`/workout-plans/${id}`);
-        if (data && data.success) {
-          setExercise(data.data);
-        }
-      } catch (err) {
-        console.error("Failed to load workout plan:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchPlan();
-  }, [id]);
+  }, [fetchPlan]);
 
   const [activeExercise, setActiveExercise] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -50,6 +57,7 @@ export function ExerciseDetailPage() {
   }, [isTimerRunning, timerSeconds]);
 
   function startRestTimer() {
+    if (!currentEx?.rest) return;
     setTimerSeconds(currentEx.rest);
     setIsTimerRunning(true);
   }
@@ -66,6 +74,7 @@ export function ExerciseDetailPage() {
   async function handleComplete() {
     if (!isComplete || isSubmitting) return;
     setIsSubmitting(true);
+    setError("");
     try {
       await apiClient.post("/workouts", {
         title: exercise.title,
@@ -75,8 +84,8 @@ export function ExerciseDetailPage() {
         totalSets: doneSets
       });
       navigate("/progress");
-    } catch (err) {
-      console.error("Failed to log workout:", err);
+    } catch {
+      setError("Workout could not be logged. Please try again.");
       setIsSubmitting(false);
     }
   }
@@ -91,15 +100,24 @@ export function ExerciseDetailPage() {
 
   if (!exercise) {
     return (
-      <div className="pt-20 text-center">
-        <p className="text-neon-orange mb-2">Workout unavailable</p>
-        <button onClick={() => navigate(-1)} className="btn-ghost">Go Back</button>
+      <div className="pt-20">
+        <ErrorState
+          title="Workout unavailable"
+          message={error || "This workout is no longer available."}
+          actionLabel="Retry"
+          onAction={fetchPlan}
+        />
+        <button onClick={() => navigate(-1)} className="btn-ghost mt-4 w-full">Go Back</button>
       </div>
     );
   }
 
   return (
-    <div className="pt-4 pb-4 space-y-5">
+      <div className="pt-4 pb-4 space-y-5">
+      {error && (
+        <ErrorState compact title="Action needed" message={error} actionLabel="Dismiss" onAction={() => setError("")} />
+      )}
+
       {/* Back + Header */}
       <div className="flex items-center gap-3 animate-fade-in">
         <button
@@ -263,8 +281,8 @@ export function ExerciseDetailPage() {
       {/* Start/Complete Workout Button */}
       <button 
         onClick={isComplete ? handleComplete : undefined}
-        disabled={isSubmitting}
-        className={`w-full text-center sticky bottom-20 z-30 transition-all duration-300 ${isComplete ? 'btn-gradient animate-pulse-glow' : 'glass-card-static py-4 text-white hover:bg-white/10'}`}
+        disabled={isSubmitting || !isComplete}
+        className={`w-full text-center sticky bottom-20 z-30 transition-all duration-300 disabled:cursor-not-allowed ${isComplete ? 'btn-gradient animate-pulse-glow' : 'glass-card-static py-4 text-dark-200'}`}
       >
         <span>
           {isSubmitting ? "Logging..." :

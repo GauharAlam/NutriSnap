@@ -19,3 +19,35 @@ export const env = {
   cloudinaryApiKey: process.env.CLOUDINARY_API_KEY || "",
   cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET || "",
 };
+
+// ─── Startup Validation ──────────────────────────────────────────────────────
+// Fail fast if critical configuration is missing.
+
+const isProduction = env.nodeEnv === "production";
+
+// Critical — server cannot function without these
+if (!process.env.MONGODB_URI) {
+  console.warn("⚠️  MONGODB_URI is not set. Falling back to local MongoDB (mongodb://127.0.0.1:27017).");
+}
+
+if (isProduction && env.jwtAccessSecret === "dev_access_secret") {
+  throw new Error("❌ JWT_ACCESS_SECRET must be set to a strong random value in production.");
+}
+
+if (isProduction && env.jwtRefreshSecret === "dev_refresh_secret") {
+  throw new Error("❌ JWT_REFRESH_SECRET must be set to a strong random value in production.");
+}
+
+if (isProduction && !process.env.MONGODB_URI) {
+  throw new Error("❌ MONGODB_URI must be set in production.");
+}
+
+// Optional — warn if AI features won't work
+if (!env.geminiApiKey && !env.openaiApiKey) {
+  console.warn("⚠️  No AI API key configured (GEMINI_API_KEY or OPENAI_API_KEY). AI features will use fallback mode.");
+}
+
+// Optional — warn if Cloudinary is not configured
+if (!env.cloudinaryCloudName || !env.cloudinaryApiKey) {
+  console.warn("⚠️  Cloudinary not configured. Image uploads will use local storage only.");
+}

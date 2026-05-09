@@ -1,6 +1,28 @@
 import { z } from "zod";
 import { validate } from "../../utils/validate.js";
 
+/* ─── Set Schema ─── */
+const setSchema = z.object({
+  setNumber: z.number().int().min(1),
+  reps: z.number().int().min(0).max(1000),
+  weightKg: z.number().min(0).max(1000).default(0),
+  rpe: z.number().min(1).max(10).optional().nullable(),
+  restSeconds: z.number().int().min(0).max(600).default(60),
+  isWarmup: z.boolean().default(false),
+});
+
+/* ─── Exercise Log Schema ─── */
+const exerciseLogSchema = z.object({
+  exerciseId: z.string().optional().nullable(),
+  exerciseName: z
+    .string({ required_error: "Exercise name is required" })
+    .trim()
+    .min(1, "Exercise name is required")
+    .max(100),
+  muscleGroups: z.array(z.string().trim()).default([]),
+  sets: z.array(setSchema).default([]),
+});
+
 /* ─── Log Workout Schema ─── */
 const logWorkoutSchema = z.object({
   title: z
@@ -28,6 +50,9 @@ const logWorkoutSchema = z.object({
     .min(0)
     .max(500)
     .default(0),
+  exercises: z.array(exerciseLogSchema).default([]),
+  notes: z.string().trim().max(500).default(""),
+  workoutPlanId: z.string().optional().nullable(),
 });
 
 export const validateLogWorkout = validate(logWorkoutSchema);
